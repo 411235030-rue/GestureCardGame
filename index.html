@@ -477,6 +477,78 @@
       };
     }
 
+    function distance2D(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function isStartPose(landmarks) {
+      const wrist = landmarks[0];
+      const fingerPairs = [[8, 6], [12, 10], [16, 14], [20, 18]];
+      const fingersExtended = fingerPairs.every(([tip, pip]) =>
+        distance2D(landmarks[tip], wrist) > distance2D(landmarks[pip], wrist) * 1.08
+      );
+      const fingertipsClose =
+        distance2D(landmarks[8], landmarks[12]) < 0.10 &&
+        distance2D(landmarks[12], landmarks[16]) < 0.10 &&
+        distance2D(landmarks[16], landmarks[20]) < 0.11;
+      const thumbSeparated =
+        distance2D(landmarks[4], landmarks[5]) > 0.11 ||
+        distance2D(landmarks[4], landmarks[8]) > 0.16;
+      return fingersExtended && fingertipsClose && thumbSeparated;
+    }
+
+    function handleStartPose(landmarks, position, now) {
+      const pose = isStartPose(landmarks);
+      if (pose) {
+        startPosePoint = { x: position.x, y: position.y };
+        if (!startPoseSince) {
+          startPoseSince = now;
+          startPoseConfirmed = false;
+        }
+        const held = now - startPoseSince;
+        const progress = Math.min(100, Math.round(held / START_POSE_HOLD_MS * 100));
+        if (held >= START_POSE_HOLD_MS) {
+          startPoseConfirmed = true;
+          gestureStart = null;
+          lastPosition = null;
+          gestureStatus.textContent = "起點已設定 ✓";
+          setDebug([
+            "Hand: YES",
+            "Pose: START ✓",
+            `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+            "Result: 起點已設定，放開手勢後開始操作"
+          ], now, true);
+        } else {
+          gestureStatus.textContent = `設定起點 ${progress}%`;
+          setDebug([
+            "Hand: YES",
+            "Pose: START",
+            `Hold: ${progress}%`,
+            "Result: 維持手勢以重設起點"
+          ], now);
+        }
+        return true;
+      }
+
+      if (startPoseSince) {
+        if (startPoseConfirmed && startPosePoint) {
+          gestureStart = { x: startPosePoint.x, y: startPosePoint.y, time: now };
+          lastPosition = { ...startPosePoint };
+          gestureStatus.textContent = "起點已設定，開始移動";
+          setDebug([
+            "Hand: YES",
+            "Pose: RELEASED",
+            `Start x: ${startPosePoint.x.toFixed(3)}  y: ${startPosePoint.y.toFixed(3)}`,
+            "Result: 從新起點開始判斷"
+          ], now, true);
+        }
+        startPoseSince = 0;
+        startPoseConfirmed = false;
+        startPosePoint = null;
+      }
+      return false;
+    }
+
     function resetGestureTracking(position = null, now = performance.now()) {
       gestureStart = position
         ? {
@@ -597,11 +669,16 @@
         if (result.landmarks?.length > 0) {
           const hand = result.landmarks[0];
           const position = getPalmCenter(hand);
-          processHandMovement(position, now);
+          if (!handleStartPose(hand, position, now)) {
+            processHandMovement(position, now);
+          }
         } else {
           if (now - lastHandSeenAt > 250) {
             gestureStart = null;
             lastPosition = null;
+            startPoseSince = 0;
+            startPoseConfirmed = false;
+            startPosePoint = null;
             gestureStatus.textContent = "把手放到鏡頭前";
             setDebug(["Hand: NO", "Result: 沒偵測到手"], now, true);
           }
