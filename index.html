@@ -551,17 +551,53 @@
     }
 
     @media (max-width: 520px) {
+      body { overflow: hidden; }
       .brand { font-size: 11px; }
-      .welcome-copy h1 { font-size: clamp(44px, 14vw, 62px); }
-      .welcome-copy .lead { font-size: 15px; line-height: 1.7; }
-      .hero-art { min-height: 330px; }
-      .hero-card { width: min(190px, 58%); border-width: 5px; border-radius: 18px; }
-      .game-header { padding: 0 18px; }
+      #welcomeScreen {
+        min-height: 100svh;
+        padding: 72px 20px 24px;
+        overflow-y: auto;
+      }
+      .welcome-nav { top: 22px; left: 20px; right: 20px; }
+      .welcome-shell { gap: 6px; }
+      .welcome-copy h1 { font-size: clamp(42px, 13vw, 58px); }
+      .welcome-copy .lead { margin-top: 18px; font-size: 14px; line-height: 1.65; }
+      #startBtn { margin-top: 22px; width: min(240px, 80vw); }
+      .welcome-gestures { margin-top: 22px; gap: 8px 12px; font-size: 11px; }
+      .hero-art { min-height: 285px; transform: translateY(-8px); }
+      .hero-card { width: min(170px, 54%); border-width: 5px; border-radius: 18px; }
+
+      #gameScreen {
+        height: 100svh;
+        min-height: 100svh;
+        padding: 58px 12px 96px;
+        overflow: hidden;
+      }
+      .game-header { height: 50px; padding: 0 18px; }
       .debug-toggle { padding: 8px 11px; }
-      .deck-shell { width: 94vw; height: min(64vh, 480px); }
-      .card-stage { width: min(72vw, 280px); }
-      .controls { bottom: 18px; }
-      .control-chip { padding: 7px 9px; }
+      .topbar { top: 60px; padding: 8px 13px; }
+      .game-main { margin-top: 8px; }
+      .deck-shell {
+        width: 100vw;
+        height: min(60svh, 500px);
+        transform: translateY(-6px);
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .card-stage { width: min(74vw, 285px); }
+      .stack-peek { border-width: 4px; border-radius: 18px; }
+      .card, .card-face { border-radius: 20px; }
+      .card-face { border-width: 5px; }
+      .controls { bottom: 14px; width: calc(100vw - 24px); }
+      #gestureStatus { margin-bottom: 8px; }
+      .control-row { gap: 6px; }
+      .control-chip { padding: 7px 9px; font-size: 10px; }
+      .keyboard-note { display: none; }
+
+      body.touch-mode .debug-toggle { display: none; }
+      body.touch-mode #cameraDot { display: none; }
+      body.touch-mode .control-chip.start-pose-chip { display: none; }
     }
   </style>
 </head>
@@ -639,7 +675,7 @@
     <div class="controls">
       <div id="gestureStatus">把手放到鏡頭前</div>
       <div class="control-row">
-        <span class="control-chip"><b>◫</b>側掌 · 設定起點</span>
+        <span class="control-chip start-pose-chip"><b>◫</b>側掌 · 設定起點</span>
         <span class="control-chip"><b>←</b>下一張</span>
         <span class="control-chip"><b>↑</b>翻牌</span>
         <span class="control-chip"><b>→</b>上一張</span>
@@ -696,6 +732,27 @@ Result: 等待開始</div>
     const gestureStatus = document.querySelector("#gestureStatus");
     const errorBox = document.querySelector("#errorBox");
     const debugPanel = document.querySelector("#debugPanel");
+    const welcomeLead = document.querySelector(".welcome-copy .lead");
+    const welcomeGestures = document.querySelector(".welcome-gestures");
+    const controlRow = document.querySelector(".control-row");
+    const keyboardNote = document.querySelector(".keyboard-note");
+    const deckShell = document.querySelector(".deck-shell");
+
+    // 手機 / 平板以觸控為主；桌機維持相機手勢。
+    const isTouchMode =
+      window.matchMedia("(pointer: coarse)").matches ||
+      navigator.maxTouchPoints > 0;
+
+    if (isTouchMode) {
+      document.body.classList.add("touch-mode");
+      startBtn.textContent = "開始抽卡";
+      welcomeLead.textContent = "左右滑動切換卡片，點一下或往上滑即可翻開你的收藏照片。";
+      welcomeGestures.innerHTML = `
+        <span><i class="gesture-mark">←</i> 左滑 · 下一張</span>
+        <span><i class="gesture-mark">○</i> 點一下 · 翻牌</span>
+        <span><i class="gesture-mark">→</i> 右滑 · 上一張</span>
+      `;
+    }
 
     // ==========================================
     // 3. 遊戲狀態
@@ -1220,8 +1277,25 @@ Result: 等待開始</div>
     // ==========================================
     async function startGame() {
       startBtn.disabled = true;
-      startBtn.textContent = "準備中…";
       errorBox.style.display = "none";
+
+      // 觸控裝置不要求相機權限，直接進入卡片畫面。
+      if (isTouchMode) {
+        welcomeScreen.classList.remove("active");
+        gameScreen.classList.add("active");
+        updateCard();
+        cameraText.textContent = "觸控模式";
+        gestureStatus.textContent = "左右滑動切換 · 點一下或上滑翻牌";
+        controlRow.innerHTML = `
+          <span class="control-chip"><b>←</b>左滑 · 下一張</span>
+          <span class="control-chip"><b>○</b>點一下 · 翻牌</span>
+          <span class="control-chip"><b>→</b>右滑 · 上一張</span>
+        `;
+        keyboardNote.style.display = "none";
+        return;
+      }
+
+      startBtn.textContent = "準備中…";
 
       try {
         if (!handLandmarker) {
@@ -1263,7 +1337,59 @@ Result: 等待開始</div>
     });
 
     // ==========================================
-    // 6. 鍵盤測試
+    // 6. 手機觸控操作
+    // 左滑下一張、右滑上一張、上滑或點一下翻牌。
+    // ==========================================
+    let touchStartPoint = null;
+    const TOUCH_SWIPE_THRESHOLD = 46;
+    const TOUCH_TAP_DISTANCE = 12;
+    const TOUCH_MAX_TIME = 900;
+
+    deckShell.addEventListener("touchstart", (event) => {
+      if (!isTouchMode || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      touchStartPoint = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: performance.now()
+      };
+    }, { passive: true });
+
+    deckShell.addEventListener("touchmove", (event) => {
+      if (isTouchMode && touchStartPoint) event.preventDefault();
+    }, { passive: false });
+
+    deckShell.addEventListener("touchend", (event) => {
+      if (!isTouchMode || !touchStartPoint || event.changedTouches.length !== 1) return;
+
+      const touch = event.changedTouches[0];
+      const dx = touch.clientX - touchStartPoint.x;
+      const dy = touch.clientY - touchStartPoint.y;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      const elapsed = performance.now() - touchStartPoint.time;
+      touchStartPoint = null;
+
+      if (elapsed > TOUCH_MAX_TIME) return;
+
+      if (absX <= TOUCH_TAP_DISTANCE && absY <= TOUCH_TAP_DISTANCE) {
+        flipCard();
+        return;
+      }
+
+      if (dy < -TOUCH_SWIPE_THRESHOLD && absY > absX * 1.15) {
+        flipCard();
+        return;
+      }
+
+      if (absX > TOUCH_SWIPE_THRESHOLD && absX > absY * 1.15) {
+        if (dx < 0) nextCard();
+        else previousCard();
+      }
+    }, { passive: true });
+
+    // ==========================================
+    // 7. 鍵盤測試
     // 沒鏡頭時可以先測遊戲流程
     // ==========================================
     window.addEventListener("keydown", (event) => {
