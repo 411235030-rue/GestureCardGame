@@ -394,6 +394,12 @@
     let lastGestureAt = 0;
     let lastPosition = null;
 
+    // 起點手勢狀態
+    let startPoseSince = 0;
+    let startPoseConfirmed = false;
+    let startPosePoint = null;
+    const START_POSE_HOLD_MS = 300;
+
     const HORIZONTAL_THRESHOLD = 0.12;
     const UP_THRESHOLD = 0.2;
     const GESTURE_WINDOW_MS = 1200;
