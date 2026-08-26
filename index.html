@@ -740,8 +740,8 @@ Result: 等待開始</div>
 
     // 手機 / 平板以觸控為主；桌機維持相機手勢。
     const isTouchMode =
-      window.matchMedia("(pointer: coarse)").matches ||
-      navigator.maxTouchPoints > 0;
+      window.matchMedia("(pointer: coarse) and (hover: none)").matches ||
+      (window.innerWidth <= 860 && navigator.maxTouchPoints > 0);
 
     if (isTouchMode) {
       document.body.classList.add("touch-mode");
