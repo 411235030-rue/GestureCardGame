@@ -294,8 +294,8 @@
 
         <div id="cardFront" class="card-face card-front front-0">
           <div class="number" id="cardNumber">CARD 01</div>
-          <h2 id="cardTitle">CARD 1</h2>
-          <p id="cardText">第 1 張測試卡</p>
+          <h2 id="cardTitle">Luna</h2>
+          <p id="cardText">第一張測試卡</p>
         </div>
       </div>
     </div>
@@ -308,8 +308,7 @@
     </div>
   </section>
 
-  <div id="debugPanel">Hand: NO
-Result: 等待開始</div>
+  <div id="debugPanel">Hand: NO\nResult: 等待開始</div>
 
   <video id="webcam" autoplay playsinline muted></video>
 
@@ -350,21 +349,16 @@ Result: 等待開始</div>
 
     function updateCard() {
       const data = cards[currentIndex];
-
       cardTitle.textContent = data.title;
       cardText.textContent = data.text;
       backNumber.textContent = currentIndex + 1;
       cardNumber.textContent =
         `CARD ${String(currentIndex + 1).padStart(2, "0")}`;
-
       cardCounter.textContent =
         `${currentIndex + 1} / ${cards.length}`;
-
       cardFront.className =
         `card-face card-front ${data.className}`;
-
       card.className = "card";
-
       if (revealed.has(currentIndex)) {
         card.classList.add("flipped");
       }
@@ -373,7 +367,6 @@ Result: 等待開始</div>
     function flipCard() {
       if (isAnimating) return;
       if (revealed.has(currentIndex)) return;
-
       revealed.add(currentIndex);
       card.classList.add("flipped");
       gestureStatus.textContent = "↑ 翻牌";
@@ -381,16 +374,13 @@ Result: 等待開始</div>
 
     function nextCard() {
       if (isAnimating) return;
-
       if (currentIndex >= cards.length - 1) {
         gestureStatus.textContent = "已經是最後一張";
         return;
       }
-
       isAnimating = true;
       gestureStatus.textContent = "← 下一張";
       card.classList.add("fly-left");
-
       setTimeout(() => {
         currentIndex++;
         updateCard();
@@ -400,16 +390,13 @@ Result: 等待開始</div>
 
     function previousCard() {
       if (isAnimating) return;
-
       if (currentIndex <= 0) {
         gestureStatus.textContent = "已經是第一張";
         return;
       }
-
       isAnimating = true;
       gestureStatus.textContent = "→ 上一張";
       card.classList.add("fly-right");
-
       setTimeout(() => {
         currentIndex--;
         updateCard();
@@ -425,22 +412,23 @@ Result: 等待開始</div>
     let lastHandSeenAt = 0;
     let lastGestureAt = 0;
     let lastPosition = null;
-    let stableFrameCount = 0;
 
-    const HORIZONTAL_THRESHOLD = 0.24;
-    const UP_THRESHOLD = 0.22;
-    const GESTURE_WINDOW_MS = 700;
-    const GESTURE_COOLDOWN_MS = 1000;
-    const MIN_MOVEMENT_SPEED = 0.00032;
-    const REQUIRED_STABLE_FRAMES = 3;
+    const HORIZONTAL_THRESHOLD = 0.12;
+    const UP_THRESHOLD = 0.11;
+    const GESTURE_WINDOW_MS = 1200;
+    const GESTURE_COOLDOWN_MS = 700;
+    const MIN_MOVEMENT_SPEED = 0.00010;
+    const DIRECTION_RATIO = 1.15;
+
+    const DEBUG_INTERVAL_MS = 250;
+    let lastDebugAt = 0;
+    let lastDebugLines = ["Hand: NO", "Result: 等待開始"];
 
     async function createHandLandmarker() {
       cameraText.textContent = "載入手部辨識";
-
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm"
       );
-
       handLandmarker = await HandLandmarker.createFromOptions(
         vision,
         {
@@ -462,9 +450,7 @@ Result: 等待開始</div>
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error("這個瀏覽器不支援相機存取。");
       }
-
       cameraText.textContent = "等待相機權限";
-
       cameraStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "user",
@@ -473,40 +459,35 @@ Result: 等待開始</div>
         },
         audio: false
       });
-
       webcam.srcObject = cameraStream;
-
       await new Promise((resolve) => {
         webcam.onloadedmetadata = resolve;
       });
-
       await webcam.play();
-
       cameraDot.classList.add("on");
       cameraText.textContent = "手勢辨識中";
     }
 
     function getPalmCenter(landmarks) {
       const indices = [0, 5, 9, 13, 17];
-
       let x = 0;
       let y = 0;
-
       for (const index of indices) {
         x += landmarks[index].x;
         y += landmarks[index].y;
       }
-
       x /= indices.length;
       y /= indices.length;
-
       return {
         x: 1 - x,
         y
       };
     }
 
-    function setDebug(lines) {
+    function setDebug(lines, now = performance.now(), force = false) {
+      lastDebugLines = lines;
+      if (!force && now - lastDebugAt < DEBUG_INTERVAL_MS) return;
+      lastDebugAt = now;
       debugPanel.textContent = lines.join("\n");
     }
 
@@ -520,62 +501,32 @@ Result: 等待開始</div>
           `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
           "Result: 冷卻中",
           `剩餘: ${Math.ceil(left)} ms`
-        ]);
-        gestureStart = null;
-        lastPosition = position;
-        stableFrameCount = 0;
+        ], now);
         return;
       }
-
-      if (!lastPosition) {
-        lastPosition = position;
-        gestureStart = { x: position.x, y: position.y, time: now };
-        setDebug([
-          "Hand: YES",
-          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-          "Result: 建立手勢起點"
-        ]);
-        gestureStatus.textContent = "偵測到手 ✓";
-        return;
-      }
-
-      const frameDx = position.x - lastPosition.x;
-      const frameDy = position.y - lastPosition.y;
-      const frameDistance = Math.hypot(frameDx, frameDy);
-
-      if (frameDistance < 0.006) {
-        stableFrameCount++;
-        if (stableFrameCount >= REQUIRED_STABLE_FRAMES) {
-          gestureStart = { x: position.x, y: position.y, time: now };
-        }
-        setDebug([
-          "Hand: YES",
-          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-          `frame move: ${frameDistance.toFixed(4)}`,
-          "Result: 手幾乎沒動"
-        ]);
-        lastPosition = position;
-        return;
-      }
-
-      stableFrameCount = 0;
 
       if (!gestureStart) {
         gestureStart = { x: position.x, y: position.y, time: now };
         lastPosition = position;
+        gestureStatus.textContent = "偵測到手 ✓";
+        setDebug([
+          "Hand: YES",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          "Result: 已建立起點，開始揮動"
+        ], now, true);
         return;
       }
 
       const elapsed = now - gestureStart.time;
+
       if (elapsed > GESTURE_WINDOW_MS) {
+        gestureStart = { x: position.x, y: position.y, time: now };
+        lastPosition = position;
         setDebug([
           "Hand: YES",
           `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-          `elapsed: ${Math.round(elapsed)} ms`,
-          "Result: 動作太慢，重新取起點"
-        ]);
-        gestureStart = { x: position.x, y: position.y, time: now };
-        lastPosition = position;
+          "Result: 動作時間超過 1.2 秒，重新取起點"
+        ], now, true);
         return;
       }
 
@@ -586,23 +537,28 @@ Result: 等待開始</div>
       const distance = Math.hypot(dx, dy);
       const speed = distance / Math.max(elapsed, 1);
 
-      let reason = "距離不足";
+      let reason = "繼續移動";
       let gesture = null;
 
-      if (speed < MIN_MOVEMENT_SPEED) {
-        reason = "速度太慢";
-      } else if (dy < -UP_THRESHOLD && absY > absX * 1.45) {
+      if (dy < -UP_THRESHOLD && absY > absX * DIRECTION_RATIO) {
         gesture = "UP";
         reason = "上滑成立";
-      } else if (absX > HORIZONTAL_THRESHOLD && absX > absY * 1.45) {
+      }
+      else if (absX > HORIZONTAL_THRESHOLD && absX > absY * DIRECTION_RATIO) {
         gesture = dx < 0 ? "LEFT" : "RIGHT";
         reason = gesture === "LEFT" ? "左滑成立" : "右滑成立";
-      } else if (absX > HORIZONTAL_THRESHOLD || absY > UP_THRESHOLD) {
-        reason = "方向太斜";
-      } else if (absX >= absY) {
-        reason = `水平距離不足 (${absX.toFixed(3)} / ${HORIZONTAL_THRESHOLD})`;
-      } else {
-        reason = `上滑距離不足 (${absY.toFixed(3)} / ${UP_THRESHOLD})`;
+      }
+      else if (speed < MIN_MOVEMENT_SPEED && elapsed > 300) {
+        reason = "移動偏慢，但仍在等待距離";
+      }
+      else if (absX >= absY) {
+        reason = `水平進度 ${Math.min(100, Math.round(absX / HORIZONTAL_THRESHOLD * 100))}%`;
+      }
+      else if (dy < 0) {
+        reason = `上滑進度 ${Math.min(100, Math.round(absY / UP_THRESHOLD * 100))}%`;
+      }
+      else {
+        reason = "目前是往下移動，不觸發";
       }
 
       setDebug([
@@ -611,18 +567,15 @@ Result: 等待開始</div>
         `dx: ${dx.toFixed(3)}  dy: ${dy.toFixed(3)}`,
         `speed: ${speed.toFixed(5)}`,
         `elapsed: ${Math.round(elapsed)} ms`,
-        `Result: ${gesture ? "✓" : "✗"} ${reason}`
-      ]);
+        `Result: ${gesture ? "✓" : "·"} ${reason}`
+      ], now, Boolean(gesture));
 
-      if (!gesture) {
-        lastPosition = position;
-        return;
-      }
+      lastPosition = position;
+      if (!gesture) return;
 
       lastGestureAt = now;
       gestureStart = null;
       lastPosition = null;
-      stableFrameCount = 0;
 
       if (gesture === "LEFT") nextCard();
       if (gesture === "RIGHT") previousCard();
@@ -631,15 +584,9 @@ Result: 等待開始</div>
 
     function detectLoop() {
       if (!detectionStarted || !handLandmarker) return;
-
       const now = performance.now();
-
       if (webcam.readyState >= 2) {
-        const result = handLandmarker.detectForVideo(
-          webcam,
-          now
-        );
-
+        const result = handLandmarker.detectForVideo(webcam, now);
         if (result.landmarks?.length > 0) {
           const hand = result.landmarks[0];
           const position = getPalmCenter(hand);
@@ -648,13 +595,11 @@ Result: 等待開始</div>
           if (now - lastHandSeenAt > 250) {
             gestureStart = null;
             lastPosition = null;
-            stableFrameCount = 0;
             gestureStatus.textContent = "把手放到鏡頭前";
-            setDebug(["Hand: NO", "Result: 沒偵測到手"]);
+            setDebug(["Hand: NO", "Result: 沒偵測到手"], now, true);
           }
         }
       }
-
       requestAnimationFrame(detectLoop);
     }
 
@@ -662,27 +607,20 @@ Result: 等待開始</div>
       startBtn.disabled = true;
       startBtn.textContent = "準備中…";
       errorBox.style.display = "none";
-
       try {
         if (!handLandmarker) {
           await createHandLandmarker();
         }
-
         await startCamera();
-
         welcomeScreen.classList.remove("active");
         gameScreen.classList.add("active");
-
         updateCard();
-
         detectionStarted = true;
         requestAnimationFrame(detectLoop);
       } catch (error) {
         console.error(error);
-
         startBtn.disabled = false;
         startBtn.textContent = "重新嘗試";
-
         errorBox.style.display = "block";
         errorBox.innerHTML = `
           <strong>無法啟動鏡頭或手勢辨識。</strong><br>
@@ -698,17 +636,13 @@ Result: 等待開始</div>
 
     window.addEventListener("keydown", (event) => {
       if (!gameScreen.classList.contains("active")) return;
-
       const key = event.key.toLowerCase();
-
       if (key === "a" || event.key === "ArrowLeft") {
         nextCard();
       }
-
       if (key === "d" || event.key === "ArrowRight") {
         previousCard();
       }
-
       if (key === "w" || event.key === "ArrowUp") {
         flipCard();
       }
