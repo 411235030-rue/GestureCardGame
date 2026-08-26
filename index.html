@@ -801,12 +801,18 @@ Result: 等待開始</div>
     let lastHandSeenAt = 0;
     let lastGestureAt = 0;
     let lastPosition = null;
+    let gestureArmed = false;
+
+    // 雙手同時出現時固定右手優先，右手短暫離開時先等待，不立刻跳到左手。
+    let activeHandLabel = null;
+    let rightHandLastSeenAt = 0;
+    const RIGHT_HAND_GRACE_MS = 250;
 
     // 起點手勢：四指併攏伸直、拇指分開，維持一小段時間後重設起點
     let startPoseSince = 0;
     let startPoseConfirmed = false;
     let startPosePoint = null;
-    const START_POSE_HOLD_MS = 300;
+    const START_POSE_HOLD_MS = 220;
 
     // 手勢門檻：左右保持靈敏；上滑需要更明顯位移，避免輕微往上就翻牌
     const HORIZONTAL_THRESHOLD = 0.12;
@@ -837,7 +843,7 @@ Result: 等待開始</div>
             delegate: "GPU"
           },
           runningMode: "VIDEO",
-          numHands: 1,
+          numHands: 2,
           minHandDetectionConfidence: 0.55,
           minHandPresenceConfidence: 0.55,
           minTrackingConfidence: 0.55
@@ -913,17 +919,17 @@ Result: 等待開始</div>
       ];
 
       const fingersExtended = fingerPairs.every(([tip, pip]) =>
-        distance2D(landmarks[tip], wrist) > distance2D(landmarks[pip], wrist) * 1.08
+        distance2D(landmarks[tip], wrist) > distance2D(landmarks[pip], wrist) * 1.05
       );
 
       const fingertipsClose =
-        distance2D(landmarks[8], landmarks[12]) < 0.10 &&
-        distance2D(landmarks[12], landmarks[16]) < 0.10 &&
-        distance2D(landmarks[16], landmarks[20]) < 0.11;
+        distance2D(landmarks[8], landmarks[12]) < 0.12 &&
+        distance2D(landmarks[12], landmarks[16]) < 0.12 &&
+        distance2D(landmarks[16], landmarks[20]) < 0.13;
 
       const thumbSeparated =
-        distance2D(landmarks[4], landmarks[5]) > 0.11 ||
-        distance2D(landmarks[4], landmarks[8]) > 0.16;
+        distance2D(landmarks[4], landmarks[5]) > 0.10 ||
+        distance2D(landmarks[4], landmarks[8]) > 0.14;
 
       return fingersExtended && fingertipsClose && thumbSeparated;
     }
@@ -944,6 +950,7 @@ Result: 等待開始</div>
 
         if (held >= START_POSE_HOLD_MS) {
           startPoseConfirmed = true;
+          gestureArmed = false;
           gestureStart = null;
           lastPosition = null;
           gestureStatus.textContent = "起點已設定 ✓";
@@ -976,6 +983,7 @@ Result: 等待開始</div>
             time: now
           };
           lastPosition = { ...startPosePoint };
+          gestureArmed = true;
           gestureStatus.textContent = "起點已設定，開始移動";
           setDebug([
             "Hand: YES",
@@ -1013,6 +1021,19 @@ Result: 等待開始</div>
     function processHandMovement(position, now) {
       lastHandSeenAt = now;
 
+      // 沒有完成起點手勢就完全禁止滑動，避免自然移動造成誤觸。
+      if (!gestureArmed) {
+        gestureStart = null;
+        lastPosition = null;
+        gestureStatus.textContent = "請先設定起點手勢";
+        setDebug([
+          "Hand: YES",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          "Result: LOCKED · 請先設定起點"
+        ], now);
+        return;
+      }
+
       // 一次手勢完成後短暫冷卻，避免同一個揮動重複觸發
       if (now - lastGestureAt < GESTURE_COOLDOWN_MS) {
         const left = Math.max(0, GESTURE_COOLDOWN_MS - (now - lastGestureAt));
@@ -1025,29 +1046,25 @@ Result: 等待開始</div>
         return;
       }
 
-      // 第一次看到手：只建立起點，不立即判斷
+      // 已解鎖但尚未有起點時，只採用剛才起點手勢釋放時留下的位置。
       if (!gestureStart) {
-        gestureStart = { x: position.x, y: position.y, time: now };
-        lastPosition = position;
-        gestureStatus.textContent = "偵測到手 ✓";
-        setDebug([
-          "Hand: YES",
-          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-          "Result: 已建立起點，開始揮動"
-        ], now, true);
+        gestureArmed = false;
+        gestureStatus.textContent = "請重新設定起點手勢";
         return;
       }
 
       const elapsed = now - gestureStart.time;
 
-      // 超過時間仍沒有完成手勢，就把目前位置當新起點
+      // 一次起點只允許一個動作；超時後鎖回去，必須重新設定起點。
       if (elapsed > GESTURE_WINDOW_MS) {
-        gestureStart = { x: position.x, y: position.y, time: now };
-        lastPosition = position;
+        gestureArmed = false;
+        gestureStart = null;
+        lastPosition = null;
+        gestureStatus.textContent = "動作逾時，請重新設定起點";
         setDebug([
           "Hand: YES",
           `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-          "Result: 動作時間超過 1.2 秒，重新取起點"
+          "Result: TIMEOUT · 請重新設定起點"
         ], now, true);
         return;
       }
@@ -1100,12 +1117,58 @@ Result: 等待開始</div>
       if (!gesture) return;
 
       lastGestureAt = now;
+      gestureArmed = false;
       gestureStart = null;
       lastPosition = null;
 
       if (gesture === "LEFT") nextCard();
       if (gesture === "RIGHT") previousCard();
       if (gesture === "UP") flipCard();
+    }
+
+    function selectPreferredHand(result, now) {
+      const count = result.landmarks?.length || 0;
+      if (!count) return null;
+
+      let rightIndex = -1;
+      let leftIndex = -1;
+
+      for (let i = 0; i < count; i++) {
+        const label = result.handedness?.[i]?.[0]?.categoryName ||
+          result.handedness?.[i]?.[0]?.displayName || "Unknown";
+        if (label === "Right") rightIndex = i;
+        if (label === "Left") leftIndex = i;
+      }
+
+      // 右手一出現就立即接管。
+      if (rightIndex >= 0) {
+        rightHandLastSeenAt = now;
+        activeHandLabel = "Right";
+        return {
+          landmarks: result.landmarks[rightIndex],
+          label: "Right"
+        };
+      }
+
+      // 剛才使用右手時，先保留 250ms，避免兩手同框時控制權來回跳。
+      if (activeHandLabel === "Right" && now - rightHandLastSeenAt < RIGHT_HAND_GRACE_MS) {
+        return null;
+      }
+
+      if (leftIndex >= 0) {
+        activeHandLabel = "Left";
+        return {
+          landmarks: result.landmarks[leftIndex],
+          label: "Left"
+        };
+      }
+
+      // handedness 偶爾缺失時仍保留單手可用性。
+      activeHandLabel = "Unknown";
+      return {
+        landmarks: result.landmarks[0],
+        label: "Unknown"
+      };
     }
 
     function detectLoop() {
@@ -1119,24 +1182,32 @@ Result: 等待開始</div>
           now
         );
 
-        if (result.landmarks?.length > 0) {
-          const hand = result.landmarks[0];
-          const position = getPalmCenter(hand);
+        const selectedHand = selectPreferredHand(result, now);
 
-          // 起點手勢優先於左右 / 上滑判斷
+        if (selectedHand) {
+          const hand = selectedHand.landmarks;
+          const position = getPalmCenter(hand);
+          lastHandSeenAt = now;
+
+          // 起點手勢優先於左右 / 上滑判斷；一次起點只解鎖一次動作。
           if (!handleStartPose(hand, position, now)) {
             processHandMovement(position, now);
           }
         } else {
-          // 手離開畫面一小段時間就重設起點
-          if (now - lastHandSeenAt > 250) {
+          // 右手優先保留期間不讓左手立即接管，也不立刻清掉狀態。
+          const waitingForRight = activeHandLabel === "Right" &&
+            now - rightHandLastSeenAt < RIGHT_HAND_GRACE_MS;
+
+          if (!waitingForRight && now - lastHandSeenAt > 250) {
+            gestureArmed = false;
             gestureStart = null;
             lastPosition = null;
             startPoseSince = 0;
             startPoseConfirmed = false;
             startPosePoint = null;
+            activeHandLabel = null;
             gestureStatus.textContent = "把手放到鏡頭前";
-            setDebug(["Hand: NO", "Result: 沒偵測到手"], now, true);
+            setDebug(["Hand: NO", "Result: 沒偵測到可用的手"], now, true);
           }
         }
       }
