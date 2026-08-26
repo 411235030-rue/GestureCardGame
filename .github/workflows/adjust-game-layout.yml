@@ -1,0 +1,46 @@
+name: Adjust game layout
+
+on:
+  push:
+    paths:
+      - '.github/workflows/adjust-game-layout.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch game layout CSS
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          replacements = [
+              ('padding: 88px 28px 30px;', 'padding: 74px 28px 30px;'),
+              ('height: 70px;', 'height: 58px;'),
+              ('top: 92px;', 'top: 74px;'),
+              ('margin-top: 18px;', 'margin-top: 4px;'),
+              ('height: min(67vh, 560px);\n      display: grid;', 'height: min(67vh, 560px);\n      transform: translateY(-24px);\n      display: grid;'),
+              ('.game-header { height: 62px; }', '.game-header { height: 54px; }'),
+              ('.topbar { top: 78px; }', '.topbar { top: 68px; }'),
+              ('#gameScreen { padding-top: 78px; }', '#gameScreen { padding-top: 66px; }'),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  print(f'Warning: pattern not found: {old}')
+              else:
+                  text = text.replace(old, new, 1)
+          p.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Move game cards up and shrink header" || exit 0
+          git push
