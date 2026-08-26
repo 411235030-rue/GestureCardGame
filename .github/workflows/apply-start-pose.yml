@@ -1,0 +1,64 @@
+name: Apply start pose logic
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-start-pose.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index.html
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          # Make revisited cards covered again.
+          s = s.replace('''    // 哪些卡已經翻開過\n    // 依照目前需求：翻開後不能再翻回去\n    const revealed = new Set();\n\n    let isAnimating = false;''', '''    // 每次切換卡片都會重新蓋回卡背\n    let isAnimating = false;''')
+          s = s.replace('''      if (revealed.has(currentIndex)) {\n        card.classList.add("flipped");\n      }''', '')
+          s = s.replace('''      if (revealed.has(currentIndex)) return;\n\n      revealed.add(currentIndex);\n      card.classList.add("flipped");''', '''      if (card.classList.contains("flipped")) return;\n\n      card.classList.add("flipped");''')
+
+          # Add start-pose state.
+          marker = '''    let lastPosition = null;\n\n    // 手勢門檻：'''
+          replacement = '''    let lastPosition = null;\n\n    // 起點手勢：四指併攏伸直、拇指分開，維持一小段時間後重設起點\n    let startPoseSince = 0;\n    let startPoseConfirmed = false;\n    let startPosePoint = null;\n    const START_POSE_HOLD_MS = 300;\n\n    // 手勢門檻：'''
+          if marker in s:
+              s = s.replace(marker, replacement, 1)
+
+          # Add pose detector before resetGestureTracking.
+          marker = '''    function resetGestureTracking(position = null, now = performance.now()) {'''
+          pose_code = '''    function distance2D(a, b) {\n      return Math.hypot(a.x - b.x, a.y - b.y);\n    }\n\n    function isStartPose(landmarks) {\n      const wrist = landmarks[0];\n      const fingerPairs = [[8, 6], [12, 10], [16, 14], [20, 18]];\n      const fingersExtended = fingerPairs.every(([tip, pip]) =>\n        distance2D(landmarks[tip], wrist) > distance2D(landmarks[pip], wrist) * 1.08\n      );\n      const fingertipsClose =\n        distance2D(landmarks[8], landmarks[12]) < 0.10 &&\n        distance2D(landmarks[12], landmarks[16]) < 0.10 &&\n        distance2D(landmarks[16], landmarks[20]) < 0.11;\n      const thumbSeparated =\n        distance2D(landmarks[4], landmarks[5]) > 0.11 ||\n        distance2D(landmarks[4], landmarks[8]) > 0.16;\n      return fingersExtended && fingertipsClose && thumbSeparated;\n    }\n\n    function handleStartPose(landmarks, position, now) {\n      const pose = isStartPose(landmarks);\n      if (pose) {\n        startPosePoint = { x: position.x, y: position.y };\n        if (!startPoseSince) {\n          startPoseSince = now;\n          startPoseConfirmed = false;\n        }\n        const held = now - startPoseSince;\n        const progress = Math.min(100, Math.round(held / START_POSE_HOLD_MS * 100));\n        if (held >= START_POSE_HOLD_MS) {\n          startPoseConfirmed = true;\n          gestureStart = null;\n          lastPosition = null;\n          gestureStatus.textContent = "起點已設定 ✓";\n          setDebug([\n            "Hand: YES",\n            "Pose: START ✓",\n            `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,\n            "Result: 起點已設定，放開手勢後開始操作"\n          ], now, true);\n        } else {\n          gestureStatus.textContent = `設定起點 ${progress}%`;\n          setDebug([\n            "Hand: YES",\n            "Pose: START",\n            `Hold: ${progress}%`,\n            "Result: 維持手勢以重設起點"\n          ], now);\n        }\n        return true;\n      }\n\n      if (startPoseSince) {\n        if (startPoseConfirmed && startPosePoint) {\n          gestureStart = { x: startPosePoint.x, y: startPosePoint.y, time: now };\n          lastPosition = { ...startPosePoint };\n          gestureStatus.textContent = "起點已設定，開始移動";\n          setDebug([\n            "Hand: YES",\n            "Pose: RELEASED",\n            `Start x: ${startPosePoint.x.toFixed(3)}  y: ${startPosePoint.y.toFixed(3)}`,\n            "Result: 從新起點開始判斷"\n          ], now, true);\n        }\n        startPoseSince = 0;\n        startPoseConfirmed = false;\n        startPosePoint = null;\n      }\n      return false;\n    }\n\n'''
+          if 'function isStartPose(' not in s and marker in s:
+              s = s.replace(marker, pose_code + marker, 1)
+
+          # Give the start pose priority over swipes.
+          old = '''          const hand = result.landmarks[0];\n          const position = getPalmCenter(hand);\n          processHandMovement(position, now);'''
+          new = '''          const hand = result.landmarks[0];\n          const position = getPalmCenter(hand);\n          if (!handleStartPose(hand, position, now)) {\n            processHandMovement(position, now);\n          }'''
+          s = s.replace(old, new, 1)
+
+          # Reset pose state when the hand leaves the camera.
+          old = '''            gestureStart = null;\n            lastPosition = null;\n            gestureStatus.textContent = "把手放到鏡頭前";'''
+          new = '''            gestureStart = null;\n            lastPosition = null;\n            startPoseSince = 0;\n            startPoseConfirmed = false;\n            startPosePoint = null;\n            gestureStatus.textContent = "把手放到鏡頭前";'''
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Commit patched index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Add start pose reset gesture"
+            git push
+          fi
