@@ -617,11 +617,11 @@
       <div class="welcome-copy">
         <p class="eyebrow">Gesture × Card</p>
         <h1>Gesture<br />Card Game</h1>
-        <p class="lead">用手勢設定起點，左右滑動切換卡片，再往上滑翻開你的收藏照片。</p>
+        <p class="lead">先握拳設定操作模式，之後可連續左右滑動切換卡片，再往上滑翻牌。</p>
         <button id="startBtn">開始抽卡</button>
 
         <div class="welcome-gestures" aria-label="操作方式">
-          <span><i class="gesture-mark">◫</i> 側掌設定起點</span>
+          <span><i class="gesture-mark">◫</i> 握拳設定起點</span>
           <span><i class="gesture-mark">←</i> 下一張</span>
           <span><i class="gesture-mark">↑</i> 翻牌</span>
           <span><i class="gesture-mark">→</i> 上一張</span>
@@ -675,7 +675,7 @@
     <div class="controls">
       <div id="gestureStatus">把手放到鏡頭前</div>
       <div class="control-row">
-        <span class="control-chip start-pose-chip"><b>◫</b>側掌 · 設定起點</span>
+        <span class="control-chip start-pose-chip"><b>◫</b>握拳 · 設定起點</span>
         <span class="control-chip"><b>←</b>下一張</span>
         <span class="control-chip"><b>↑</b>翻牌</span>
         <span class="control-chip"><b>→</b>上一張</span>
@@ -863,9 +863,10 @@ Result: 等待開始</div>
     // 雙手同時出現時固定右手優先，右手短暫離開時先等待，不立刻跳到左手。
     let activeHandLabel = null;
     let rightHandLastSeenAt = 0;
-    const RIGHT_HAND_GRACE_MS = 250;
+    const RIGHT_HAND_GRACE_MS = 500;
+    const HAND_LOST_RESET_MS = 1000;
 
-    // 起點手勢：四指併攏伸直、拇指分開，維持一小段時間後重設起點
+    // 起點手勢：握拳維持一小段時間，啟動或重新設定操作模式
     let startPoseSince = 0;
     let startPoseConfirmed = false;
     let startPosePoint = null;
@@ -964,31 +965,22 @@ Result: 等待開始</div>
       return Math.hypot(a.x - b.x, a.y - b.y);
     }
 
-    // 判斷「側掌起點手勢」：四指伸直且彼此靠近，拇指與食指側明顯分開。
-    // 這是幾何近似，先做成可測試版本，之後可依實際鏡頭結果再調門檻。
+    // 判斷「握拳起點手勢」：至少三根手指明顯彎曲即可。
+    // 不限制拇指位置，降低不同握拳習慣造成的辨識失敗。
     function isStartPose(landmarks) {
       const wrist = landmarks[0];
       const fingerPairs = [
-        [8, 6],   // 食指 tip / PIP
-        [12, 10], // 中指
-        [16, 14], // 無名指
-        [20, 18]  // 小指
+        [8, 6],
+        [12, 10],
+        [16, 14],
+        [20, 18]
       ];
 
-      const fingersExtended = fingerPairs.every(([tip, pip]) =>
-        distance2D(landmarks[tip], wrist) > distance2D(landmarks[pip], wrist) * 1.05
-      );
+      const curledCount = fingerPairs.filter(([tip, pip]) =>
+        distance2D(landmarks[tip], wrist) < distance2D(landmarks[pip], wrist) * 1.12
+      ).length;
 
-      const fingertipsClose =
-        distance2D(landmarks[8], landmarks[12]) < 0.12 &&
-        distance2D(landmarks[12], landmarks[16]) < 0.12 &&
-        distance2D(landmarks[16], landmarks[20]) < 0.13;
-
-      const thumbSeparated =
-        distance2D(landmarks[4], landmarks[5]) > 0.10 ||
-        distance2D(landmarks[4], landmarks[8]) > 0.14;
-
-      return fingersExtended && fingertipsClose && thumbSeparated;
+      return curledCount >= 3;
     }
 
     function handleStartPose(landmarks, position, now) {
@@ -1010,20 +1002,20 @@ Result: 等待開始</div>
           gestureArmed = false;
           gestureStart = null;
           lastPosition = null;
-          gestureStatus.textContent = "起點已設定 ✓";
+          gestureStatus.textContent = "握拳辨識成功 ✓";
           setDebug([
             "Hand: YES",
-            "Pose: START ✓",
+            "Pose: FIST ✓",
             `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-            "Result: 起點已設定，放開手勢後開始操作"
+            "Result: 握拳成功，放開後進入操作模式"
           ], now, true);
         } else {
           gestureStatus.textContent = `設定起點 ${progress}%`;
           setDebug([
             "Hand: YES",
-            "Pose: START",
+            "Pose: FIST",
             `Hold: ${progress}%`,
-            "Result: 維持手勢以重設起點"
+            "Result: 維持握拳以啟動操作模式"
           ], now);
         }
 
@@ -1041,12 +1033,12 @@ Result: 等待開始</div>
           };
           lastPosition = { ...startPosePoint };
           gestureArmed = true;
-          gestureStatus.textContent = "起點已設定，開始移動";
+          gestureStatus.textContent = "操作模式已啟用 ✓";
           setDebug([
             "Hand: YES",
             "Pose: RELEASED",
             `Start x: ${startPosePoint.x.toFixed(3)}  y: ${startPosePoint.y.toFixed(3)}`,
-            "Result: 從新起點開始判斷"
+            "Result: 操作模式已啟用"
           ], now, true);
         }
 
@@ -1082,17 +1074,19 @@ Result: 等待開始</div>
       if (!gestureArmed) {
         gestureStart = null;
         lastPosition = null;
-        gestureStatus.textContent = "請先設定起點手勢";
+        gestureStatus.textContent = "請先握拳啟動操作模式";
         setDebug([
           "Hand: YES",
           `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-          "Result: LOCKED · 請先設定起點"
+          "Result: LOCKED · 請先握拳"
         ], now);
         return;
       }
 
       // 一次手勢完成後短暫冷卻，避免同一個揮動重複觸發
       if (now - lastGestureAt < GESTURE_COOLDOWN_MS) {
+        gestureStart = { x: position.x, y: position.y, time: now };
+        lastPosition = { ...position };
         const left = Math.max(0, GESTURE_COOLDOWN_MS - (now - lastGestureAt));
         setDebug([
           "Hand: YES",
@@ -1103,25 +1097,25 @@ Result: 等待開始</div>
         return;
       }
 
-      // 已解鎖但尚未有起點時，只採用剛才起點手勢釋放時留下的位置。
+      // 操作模式中若基準點遺失，直接以目前位置重新抓取，不要求再次握拳。
       if (!gestureStart) {
-        gestureArmed = false;
-        gestureStatus.textContent = "請重新設定起點手勢";
+        gestureStart = { x: position.x, y: position.y, time: now };
+        lastPosition = { ...position };
+        gestureStatus.textContent = "操作中 · 已重新抓取起點";
         return;
       }
 
       const elapsed = now - gestureStart.time;
 
-      // 一次起點只允許一個動作；超時後鎖回去，必須重新設定起點。
+      // 超時只重新抓取目前位置，不解除操作模式。
       if (elapsed > GESTURE_WINDOW_MS) {
-        gestureArmed = false;
-        gestureStart = null;
-        lastPosition = null;
-        gestureStatus.textContent = "動作逾時，請重新設定起點";
+        gestureStart = { x: position.x, y: position.y, time: now };
+        lastPosition = { ...position };
+        gestureStatus.textContent = "操作中 · 已重新抓取起點";
         setDebug([
           "Hand: YES",
           `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
-          "Result: TIMEOUT · 請重新設定起點"
+          "Result: TIMEOUT · 自動更新起點"
         ], now, true);
         return;
       }
@@ -1174,9 +1168,9 @@ Result: 等待開始</div>
       if (!gesture) return;
 
       lastGestureAt = now;
-      gestureArmed = false;
-      gestureStart = null;
-      lastPosition = null;
+      gestureArmed = true;
+      gestureStart = { x: position.x, y: position.y, time: now };
+      lastPosition = { ...position };
 
       if (gesture === "LEFT") nextCard();
       if (gesture === "RIGHT") previousCard();
@@ -1207,7 +1201,7 @@ Result: 等待開始</div>
         };
       }
 
-      // 剛才使用右手時，先保留 250ms，避免兩手同框時控制權來回跳。
+      // 剛才使用右手時，先保留 500ms，避免兩手同框時控制權來回跳。
       if (activeHandLabel === "Right" && now - rightHandLastSeenAt < RIGHT_HAND_GRACE_MS) {
         return null;
       }
@@ -1255,7 +1249,7 @@ Result: 等待開始</div>
           const waitingForRight = activeHandLabel === "Right" &&
             now - rightHandLastSeenAt < RIGHT_HAND_GRACE_MS;
 
-          if (!waitingForRight && now - lastHandSeenAt > 250) {
+          if (!waitingForRight && now - lastHandSeenAt > HAND_LOST_RESET_MS) {
             gestureArmed = false;
             gestureStart = null;
             lastPosition = null;
@@ -1263,8 +1257,8 @@ Result: 等待開始</div>
             startPoseConfirmed = false;
             startPosePoint = null;
             activeHandLabel = null;
-            gestureStatus.textContent = "把手放到鏡頭前";
-            setDebug(["Hand: NO", "Result: 沒偵測到可用的手"], now, true);
+            gestureStatus.textContent = "手離開鏡頭 · 請重新握拳";
+            setDebug(["Hand: NO", "Result: 手離開超過 1 秒，請重新握拳"], now, true);
           }
         }
       }
