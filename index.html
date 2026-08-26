@@ -3,111 +3,377 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>手勢抽卡遊戲</title>
-
+  <title>Gesture Card Game</title>
   <style>
-    * {
-      box-sizing: border-box;
+    :root {
+      --bg: #f7efed;
+      --paper: #fffaf8;
+      --ink: #423b42;
+      --muted: #8e8388;
+      --rose: #ddb0aa;
+      --rose-deep: #c99089;
+      --line: rgba(92, 74, 84, .12);
+      --shadow: 0 28px 70px rgba(102, 73, 85, .15);
     }
 
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; min-height: 100%; }
+
     body {
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(135deg, #fff4f7, #f3efff);
-      color: #2b2330;
+      font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 8%, rgba(237, 193, 185, .52), transparent 28%),
+        radial-gradient(circle at 89% 78%, rgba(215, 198, 213, .36), transparent 30%),
+        var(--bg);
       min-height: 100vh;
       overflow: hidden;
     }
 
-    button {
-      font: inherit;
-      cursor: pointer;
-    }
+    button { font: inherit; }
 
     .screen {
-      width: 100vw;
-      height: 100vh;
       display: none;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      padding: 24px;
+      min-height: 100vh;
+      width: 100vw;
     }
 
-    .screen.active {
+    .screen.active { display: flex; }
+
+    /* ---------- Welcome ---------- */
+    #welcomeScreen {
+      position: relative;
+      align-items: stretch;
+      overflow: hidden;
+      padding: 30px clamp(28px, 6vw, 96px) 42px;
+    }
+
+    #welcomeScreen::before,
+    #welcomeScreen::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(2px);
+      pointer-events: none;
+    }
+
+    #welcomeScreen::before {
+      width: 320px;
+      height: 320px;
+      left: -110px;
+      bottom: -115px;
+      background: rgba(232, 192, 185, .35);
+    }
+
+    #welcomeScreen::after {
+      width: 230px;
+      height: 230px;
+      right: -70px;
+      top: 12%;
+      background: rgba(206, 191, 209, .30);
+    }
+
+    .welcome-nav {
+      position: absolute;
+      top: 30px;
+      left: clamp(28px, 6vw, 96px);
+      right: clamp(28px, 6vw, 96px);
+      z-index: 4;
       display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    #welcomeScreen h1 {
-      font-size: clamp(40px, 7vw, 82px);
+    .brand {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: #776c71;
+    }
+
+    .welcome-shell {
+      position: relative;
+      z-index: 2;
+      width: min(1180px, 100%);
+      margin: auto;
+      display: grid;
+      grid-template-columns: minmax(340px, 1fr) minmax(360px, .92fr);
+      gap: clamp(44px, 7vw, 100px);
+      align-items: center;
+    }
+
+    .hero-art {
+      position: relative;
+      min-height: 570px;
+      display: grid;
+      place-items: center;
+    }
+
+    .hero-art::before {
+      content: "";
+      position: absolute;
+      width: 84%;
+      height: 72%;
+      border-radius: 46% 54% 58% 42% / 55% 42% 58% 45%;
+      background: rgba(255,255,255,.46);
+      border: 1px solid rgba(255,255,255,.72);
+      transform: rotate(-7deg);
+    }
+
+    .hero-card {
+      position: absolute;
+      width: min(290px, 62%);
+      aspect-ratio: 2.5 / 3.5;
+      border-radius: 24px;
+      border: 7px solid rgba(255,255,255,.94);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero-card.back {
+      display: grid;
+      place-items: center;
+      color: white;
+      background:
+        radial-gradient(circle at 28% 20%, rgba(255,255,255,.28), transparent 28%),
+        linear-gradient(155deg, #9d8798, #d6a8a7 60%, #edc5bc);
+      font-family: Georgia, serif;
+      font-size: 54px;
+    }
+
+    .hero-card.back small {
+      display: block;
+      margin-top: 8px;
+      font: 600 11px/1 Inter, "Segoe UI", sans-serif;
+      letter-spacing: .28em;
+      text-align: center;
+    }
+
+    .hero-card.photo { background: #f2e9e6; }
+    .hero-card.photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hero-card.one { transform: translate(-35%, 4%) rotate(-11deg); }
+    .hero-card.two { z-index: 2; transform: translate(8%, -4%) rotate(4deg); }
+    .hero-card.three { transform: translate(40%, 14%) rotate(12deg); }
+
+    .welcome-copy { max-width: 520px; }
+
+    .eyebrow {
       margin: 0 0 16px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--rose-deep);
     }
 
-    #welcomeScreen p {
-      font-size: 18px;
-      opacity: 0.7;
-      margin: 0 0 28px;
+    .welcome-copy h1 {
+      margin: 0;
+      max-width: 540px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(50px, 5.4vw, 78px);
+      font-weight: 500;
+      line-height: .98;
+      letter-spacing: -.035em;
+      color: #3f3940;
+    }
+
+    .welcome-copy .lead {
+      max-width: 470px;
+      margin: 26px 0 0;
+      font-size: 17px;
+      line-height: 1.85;
+      color: #766c71;
     }
 
     #startBtn {
+      margin-top: 32px;
+      min-width: 152px;
       border: 0;
-      border-radius: 999px;
-      padding: 16px 34px;
-      font-size: 20px;
+      border-radius: 8px;
+      padding: 15px 28px;
+      background: var(--rose);
+      color: #fff;
       font-weight: 700;
-      background: #2b2330;
-      color: white;
-      box-shadow: 0 14px 35px rgba(43, 35, 48, 0.18);
-      transition: transform 0.2s ease;
+      letter-spacing: .04em;
+      cursor: pointer;
+      box-shadow: 0 12px 30px rgba(188, 129, 123, .20);
+      transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
     }
 
     #startBtn:hover {
       transform: translateY(-2px);
+      background: var(--rose-deep);
+      box-shadow: 0 16px 34px rgba(188, 129, 123, .25);
     }
 
-    #startBtn:disabled {
-      opacity: 0.55;
-      cursor: wait;
+    #startBtn:disabled { opacity: .6; cursor: wait; }
+
+    .welcome-gestures {
+      margin-top: 34px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      color: #91858a;
+      font-size: 12px;
     }
 
+    .welcome-gestures span {
+      display: inline-flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .gesture-mark {
+      width: 23px;
+      height: 23px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(255,255,255,.7);
+      border: 1px solid var(--line);
+      color: #8c747a;
+    }
+
+    .error-box {
+      display: none;
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.76);
+      border: 1px solid rgba(185, 128, 124, .18);
+      color: #765f64;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    /* ---------- Game ---------- */
     #gameScreen {
       position: relative;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 88px 28px 30px;
+      overflow: hidden;
     }
+
+    .game-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      height: 70px;
+      padding: 0 clamp(24px, 4vw, 64px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(247,239,237,.72);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(91,72,82,.06);
+    }
+
+    .game-actions { display: flex; align-items: center; gap: 10px; }
+
+    .debug-toggle {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.72);
+      color: #786d72;
+      border-radius: 999px;
+      padding: 9px 14px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      transition: .2s ease;
+    }
+
+    .debug-toggle:hover,
+    .debug-toggle.active { background: #fff; color: #4d454a; }
 
     .topbar {
       position: absolute;
-      top: 18px;
+      top: 92px;
       left: 50%;
       transform: translateX(-50%);
+      z-index: 12;
       display: flex;
-      gap: 12px;
       align-items: center;
+      gap: 10px;
       padding: 10px 16px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.78);
+      background: rgba(255,255,255,.78);
+      border: 1px solid rgba(255,255,255,.86);
+      box-shadow: 0 12px 30px rgba(99,75,86,.08);
       backdrop-filter: blur(12px);
-      box-shadow: 0 10px 25px rgba(0,0,0,.07);
-      z-index: 5;
-      font-size: 14px;
+      white-space: nowrap;
+      font-size: 12px;
+      color: #756b70;
     }
 
     #cameraDot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
-      background: #aaa;
+      background: #b7b2b4;
+      flex: 0 0 auto;
     }
 
     #cameraDot.on {
-      background: #2ecc71;
-      box-shadow: 0 0 0 5px rgba(46, 204, 113, .14);
+      background: #57c98b;
+      box-shadow: 0 0 0 5px rgba(87,201,139,.12);
     }
 
+    .game-main {
+      width: 100%;
+      display: grid;
+      place-items: center;
+      margin-top: 18px;
+    }
+
+    .deck-shell {
+      position: relative;
+      width: min(78vw, 360px);
+      height: min(67vh, 560px);
+      display: grid;
+      place-items: center;
+    }
+
+    .stack-peek {
+      position: absolute;
+      left: 50%;
+      width: 78%;
+      aspect-ratio: 2.5 / 3.5;
+      border-radius: 22px;
+      border: 5px solid rgba(255,255,255,.9);
+      background:
+        radial-gradient(circle at 28% 20%, rgba(255,255,255,.22), transparent 26%),
+        linear-gradient(155deg, #a390a0, #d2a6a5 60%, #edc5bd);
+      box-shadow: 0 16px 40px rgba(84,61,72,.10);
+      color: rgba(255,255,255,.94);
+      display: grid;
+      place-items: center;
+      transition: opacity .25s ease, transform .42s cubic-bezier(.2,.8,.2,1);
+      pointer-events: none;
+    }
+
+    .stack-peek span {
+      font: 500 34px/1 Georgia, serif;
+      opacity: .72;
+    }
+
+    .stack-peek.far-top { top: 3%; transform: translateX(-50%) scale(.72); z-index: 1; opacity: .36; }
+    .stack-peek.near-top { top: 9%; transform: translateX(-50%) scale(.84); z-index: 2; opacity: .62; }
+    .stack-peek.near-bottom { bottom: 9%; transform: translateX(-50%) scale(.84); z-index: 2; opacity: .62; }
+    .stack-peek.far-bottom { bottom: 3%; transform: translateX(-50%) scale(.72); z-index: 1; opacity: .36; }
+    .stack-peek.is-hidden { opacity: 0 !important; }
+
     .card-stage {
-      width: min(82vw, 420px);
+      width: min(72vw, 310px);
       aspect-ratio: 2.5 / 3.5;
       perspective: 1200px;
       position: relative;
+      z-index: 6;
     }
 
     .card {
@@ -116,49 +382,48 @@
       position: absolute;
       inset: 0;
       transform-style: preserve-3d;
-      transition:
-        transform 0.55s cubic-bezier(.2,.8,.2,1),
-        opacity 0.35s ease;
-      border-radius: 28px;
+      transition: transform .52s cubic-bezier(.2,.8,.2,1), opacity .32s ease;
+      border-radius: 24px;
     }
 
     .card-face {
       position: absolute;
       inset: 0;
-      border-radius: 28px;
+      border-radius: 24px;
       backface-visibility: hidden;
       overflow: hidden;
-      box-shadow: 0 30px 70px rgba(63, 45, 68, 0.25);
-      border: 8px solid rgba(255,255,255,.85);
+      border: 6px solid rgba(255,255,255,.95);
+      box-shadow: 0 25px 60px rgba(79,56,68,.18);
     }
 
     .card-back {
-      background:
-        radial-gradient(circle at 25% 20%, rgba(255,255,255,.4), transparent 26%),
-        linear-gradient(145deg, #7b5cff, #e89ac7);
       display: grid;
       place-items: center;
-      color: white;
       text-align: center;
+      color: white;
+      background:
+        radial-gradient(circle at 27% 19%, rgba(255,255,255,.30), transparent 27%),
+        linear-gradient(155deg, #9c899a, #d3a5a5 59%, #efc8be);
     }
 
     .card-back span {
-      font-size: 72px;
+      display: block;
+      font: 500 clamp(64px, 8vw, 92px)/.95 Georgia, serif;
     }
 
     .card-back small {
       display: block;
-      margin-top: 10px;
-      font-size: 16px;
-      letter-spacing: .16em;
-      opacity: .9;
+      margin-top: 14px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .32em;
+      opacity: .88;
     }
 
     .card-front {
       transform: rotateY(180deg);
       padding: 0;
-      background: #111;
-      display: block;
+      background: #eee5e2;
     }
 
     .card-front img {
@@ -166,55 +431,96 @@
       height: 100%;
       object-fit: contain;
       display: block;
-      background: #111;
+      background: #eee5e2;
     }
 
-    .card.flipped {
-      transform: rotateY(180deg);
-    }
+    .card.flipped { transform: rotateY(180deg); }
+    .card.fly-left { transform: translateX(-115vw) rotate(-15deg); opacity: 0; }
+    .card.fly-right { transform: translateX(115vw) rotate(15deg); opacity: 0; }
 
-    .card.fly-left {
-      transform: translateX(-135vw) rotate(-18deg);
-      opacity: 0;
-    }
-
-    .card.fly-right {
-      transform: translateX(135vw) rotate(18deg);
-      opacity: 0;
-    }
-
-    .hint {
+    .controls {
       position: absolute;
-      bottom: 26px;
+      bottom: 28px;
       left: 50%;
       transform: translateX(-50%);
-      width: min(92vw, 620px);
+      width: min(680px, calc(100vw - 42px));
       text-align: center;
-      line-height: 1.7;
-      font-size: 14px;
-      opacity: .72;
+      z-index: 10;
     }
 
     #gestureStatus {
-      font-weight: 800;
-      opacity: 1;
+      margin-bottom: 12px;
+      min-height: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #665a60;
+    }
+
+    .control-row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .control-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.64);
+      border: 1px solid rgba(255,255,255,.82);
+      color: #81767b;
+      font-size: 11px;
+      box-shadow: 0 7px 18px rgba(93,70,81,.05);
+    }
+
+    .control-chip b {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #fff;
+      color: #9b777b;
+      font-size: 12px;
+    }
+
+    .keyboard-note {
+      margin-top: 9px;
+      color: #a19599;
+      font-size: 10px;
+      letter-spacing: .02em;
     }
 
     #debugPanel {
       position: fixed;
-      right: 14px;
-      top: 14px;
-      z-index: 9999;
-      min-width: 230px;
-      background: rgba(0, 0, 0, 0.78);
+      right: clamp(18px, 3vw, 42px);
+      top: 82px;
+      z-index: 50;
+      width: min(300px, calc(100vw - 36px));
+      max-height: calc(100vh - 110px);
+      overflow: auto;
+      padding: 15px 17px;
+      border-radius: 14px;
+      background: rgba(48,43,47,.91);
       color: #fff;
-      padding: 12px 14px;
-      border-radius: 12px;
+      box-shadow: 0 18px 46px rgba(49,37,43,.22);
       font-family: Consolas, monospace;
       white-space: pre-line;
-      font-size: 12px;
-      line-height: 1.45;
+      font-size: 11px;
+      line-height: 1.55;
+      opacity: 0;
+      transform: translateY(-8px) scale(.98);
       pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    #debugPanel.open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
     }
 
     #webcam {
@@ -227,65 +533,121 @@
       top: -9999px;
     }
 
-    .error-box {
-      max-width: 540px;
-      background: rgba(255,255,255,.9);
-      padding: 18px 20px;
-      border-radius: 18px;
-      margin-top: 20px;
-      display: none;
-      line-height: 1.6;
-      text-align: left;
+    @media (max-width: 860px) {
+      body { overflow: auto; }
+      #welcomeScreen { padding-top: 86px; overflow: auto; }
+      .welcome-shell { grid-template-columns: 1fr; gap: 18px; text-align: center; }
+      .hero-art { min-height: 390px; order: 2; }
+      .welcome-copy { margin: 0 auto; }
+      .welcome-copy .lead { margin-left: auto; margin-right: auto; }
+      .welcome-gestures { justify-content: center; }
+      .hero-card { width: min(230px, 55%); }
+      .game-header { height: 62px; }
+      .topbar { top: 78px; }
+      #gameScreen { padding-top: 78px; }
+      .deck-shell { height: min(66vh, 510px); }
     }
 
     @media (max-width: 520px) {
-      .card-stage {
-        width: min(84vw, 360px);
-      }
+      .brand { font-size: 11px; }
+      .welcome-copy h1 { font-size: clamp(44px, 14vw, 62px); }
+      .welcome-copy .lead { font-size: 15px; line-height: 1.7; }
+      .hero-art { min-height: 330px; }
+      .hero-card { width: min(190px, 58%); border-width: 5px; border-radius: 18px; }
+      .game-header { padding: 0 18px; }
+      .debug-toggle { padding: 8px 11px; }
+      .deck-shell { width: 94vw; height: min(64vh, 480px); }
+      .card-stage { width: min(72vw, 280px); }
+      .controls { bottom: 18px; }
+      .control-chip { padding: 7px 9px; }
     }
   </style>
 </head>
-
 <body>
   <section id="welcomeScreen" class="screen active">
-    <h1>抽卡時間 ✨</h1>
-    <p>用手勢翻牌與切換卡片</p>
-    <button id="startBtn">開始玩</button>
-    <div id="errorBox" class="error-box"></div>
+    <nav class="welcome-nav">
+      <div class="brand">Made by line</div>
+    </nav>
+
+    <div class="welcome-shell">
+      <div class="hero-art" aria-hidden="true">
+        <div class="hero-card back one"><div>07<small>CARD</small></div></div>
+        <div class="hero-card photo two"><img src="card/card3.jpeg" alt="" /></div>
+        <div class="hero-card back three"><div>12<small>CARD</small></div></div>
+      </div>
+
+      <div class="welcome-copy">
+        <p class="eyebrow">Gesture × Card</p>
+        <h1>Gesture<br />Card Game</h1>
+        <p class="lead">用手勢設定起點，左右滑動切換卡片，再往上滑翻開你的收藏照片。</p>
+        <button id="startBtn">開始抽卡</button>
+
+        <div class="welcome-gestures" aria-label="操作方式">
+          <span><i class="gesture-mark">◫</i> 側掌設定起點</span>
+          <span><i class="gesture-mark">←</i> 下一張</span>
+          <span><i class="gesture-mark">↑</i> 翻牌</span>
+          <span><i class="gesture-mark">→</i> 上一張</span>
+        </div>
+
+        <div id="errorBox" class="error-box"></div>
+      </div>
+    </div>
   </section>
 
   <section id="gameScreen" class="screen">
+    <header class="game-header">
+      <div class="brand">Made by line</div>
+      <div class="game-actions">
+        <button id="debugToggle" class="debug-toggle" type="button" aria-expanded="false">Debug</button>
+      </div>
+    </header>
+
     <div class="topbar">
       <span id="cameraDot"></span>
       <span id="cameraText">準備鏡頭中</span>
-      <span>・</span>
+      <span>·</span>
       <span id="cardCounter">1 / 20</span>
     </div>
 
-    <div class="card-stage">
-      <div id="card" class="card">
-        <div class="card-face card-back">
-          <div>
-            <span id="backNumber">1</span>
-            <small>CARD</small>
+    <main class="game-main">
+      <div class="deck-shell">
+        <div id="peekPrev2" class="stack-peek far-top"><span>1</span></div>
+        <div id="peekPrev1" class="stack-peek near-top"><span>1</span></div>
+
+        <div class="card-stage">
+          <div id="card" class="card">
+            <div class="card-face card-back">
+              <div>
+                <span id="backNumber">1</span>
+                <small>CARD</small>
+              </div>
+            </div>
+
+            <div id="cardFront" class="card-face card-front">
+              <img id="cardImage" src="card/card1.jpeg" alt="CARD 01" />
+            </div>
           </div>
         </div>
 
-        <div id="cardFront" class="card-face card-front">
-          <img id="cardImage" src="card/card1.jpeg" alt="CARD 01" />
-        </div>
+        <div id="peekNext1" class="stack-peek near-bottom"><span>2</span></div>
+        <div id="peekNext2" class="stack-peek far-bottom"><span>3</span></div>
       </div>
-    </div>
+    </main>
 
-    <div class="hint">
+    <div class="controls">
       <div id="gestureStatus">把手放到鏡頭前</div>
-      ← 左滑：下一張　　↑ 上滑：翻牌　　→ 右滑：上一張
-      <br />
-      測試時也可以用鍵盤：A / W / D
+      <div class="control-row">
+        <span class="control-chip"><b>◫</b>側掌 · 設定起點</span>
+        <span class="control-chip"><b>←</b>下一張</span>
+        <span class="control-chip"><b>↑</b>翻牌</span>
+        <span class="control-chip"><b>→</b>上一張</span>
+      </div>
+      <div class="keyboard-note">Keyboard test · A / W / D</div>
     </div>
   </section>
 
-  <div id="debugPanel">Hand: NO\nResult: 等待開始</div>
+  <div id="debugPanel">Hand: NO
+Result: 等待開始</div>
   <video id="webcam" autoplay playsinline muted></video>
 
   <script type="module">
@@ -294,15 +656,23 @@
       FilesetResolver
     } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm";
 
+    // ==========================================
+    // 1. 固定測試卡
+    // 之後你只要把這裡換成真正卡片資料 / 圖片即可
+    // ==========================================
     const cards = Array.from({ length: 20 }, (_, i) => ({
       image: `card/card${i + 1}.jpeg`
     }));
 
+    // 預先載入 20 張卡片，翻牌時比較順
     cards.forEach((data) => {
       const image = new Image();
       image.src = data.image;
     });
 
+    // ==========================================
+    // 2. DOM
+    // ==========================================
     const welcomeScreen = document.querySelector("#welcomeScreen");
     const gameScreen = document.querySelector("#gameScreen");
     const startBtn = document.querySelector("#startBtn");
@@ -313,6 +683,11 @@
     const cardImage = document.querySelector("#cardImage");
     const backNumber = document.querySelector("#backNumber");
     const cardCounter = document.querySelector("#cardCounter");
+    const peekPrev2 = document.querySelector("#peekPrev2");
+    const peekPrev1 = document.querySelector("#peekPrev1");
+    const peekNext1 = document.querySelector("#peekNext1");
+    const peekNext2 = document.querySelector("#peekNext2");
+    const debugToggle = document.querySelector("#debugToggle");
 
     const cameraDot = document.querySelector("#cameraDot");
     const cameraText = document.querySelector("#cameraText");
@@ -320,23 +695,48 @@
     const errorBox = document.querySelector("#errorBox");
     const debugPanel = document.querySelector("#debugPanel");
 
+    // ==========================================
+    // 3. 遊戲狀態
+    // ==========================================
     let currentIndex = 0;
+
+    // 每次切換卡片都會重新蓋回卡背
     let isAnimating = false;
 
     function updateCard() {
       const data = cards[currentIndex];
 
       backNumber.textContent = currentIndex + 1;
-      cardCounter.textContent = `${currentIndex + 1} / ${cards.length}`;
+      cardCounter.textContent =
+        `${currentIndex + 1} / ${cards.length}`;
 
       cardImage.src = data.image;
-      cardImage.alt = `CARD ${String(currentIndex + 1).padStart(2, "0")}`;
+      cardImage.alt =
+        `CARD ${String(currentIndex + 1).padStart(2, "0")}`;
 
       cardFront.className = "card-face card-front";
 
-      // 每次切換卡片都重新蓋回卡背。
+      updateDeckPeeks();
+
+      // 切到任何卡片時，一律先回到卡背。
       // 例如：2 翻開 → 3 → 回到 2，2 會重新是覆蓋狀態。
       card.className = "card";
+    }
+
+    function setPeek(element, index) {
+      if (!element) return;
+      const valid = index >= 0 && index < cards.length;
+      element.classList.toggle("is-hidden", !valid);
+      if (valid) {
+        element.querySelector("span").textContent = index + 1;
+      }
+    }
+
+    function updateDeckPeeks() {
+      setPeek(peekPrev2, currentIndex - 2);
+      setPeek(peekPrev1, currentIndex - 1);
+      setPeek(peekNext1, currentIndex + 1);
+      setPeek(peekNext2, currentIndex + 2);
     }
 
     function flipCard() {
@@ -350,6 +750,7 @@
     function nextCard() {
       if (isAnimating) return;
 
+      // 已經最後一張就不再往後
       if (currentIndex >= cards.length - 1) {
         gestureStatus.textContent = "已經是最後一張";
         return;
@@ -369,6 +770,7 @@
     function previousCard() {
       if (isAnimating) return;
 
+      // 已經第一張就不再往前
       if (currentIndex <= 0) {
         gestureStatus.textContent = "已經是第一張";
         return;
@@ -385,21 +787,26 @@
       }, 360);
     }
 
+    // ==========================================
+    // 4. MediaPipe 手部辨識
+    // ==========================================
     let handLandmarker = null;
     let cameraStream = null;
     let detectionStarted = false;
 
+    // 手勢追蹤
     let gestureStart = null;
     let lastHandSeenAt = 0;
     let lastGestureAt = 0;
     let lastPosition = null;
 
-    // 起點手勢狀態
+    // 起點手勢：四指併攏伸直、拇指分開，維持一小段時間後重設起點
     let startPoseSince = 0;
     let startPoseConfirmed = false;
     let startPosePoint = null;
     const START_POSE_HOLD_MS = 300;
 
+    // 手勢門檻：左右保持靈敏；上滑需要更明顯位移，避免輕微往上就翻牌
     const HORIZONTAL_THRESHOLD = 0.12;
     const UP_THRESHOLD = 0.2;
     const GESTURE_WINDOW_MS = 1200;
@@ -407,6 +814,7 @@
     const MIN_MOVEMENT_SPEED = 0.00010;
     const DIRECTION_RATIO = 1.15;
 
+    // 偵錯面板只更新 4 次/秒，不要每一幀狂跳
     const DEBUG_INTERVAL_MS = 250;
     let lastDebugAt = 0;
     let lastDebugLines = ["Hand: NO", "Result: 等待開始"];
@@ -463,6 +871,7 @@
       cameraText.textContent = "手勢辨識中";
     }
 
+    // 取手掌中心，會比只追某一根手指穩
     function getPalmCenter(landmarks) {
       const indices = [0, 5, 9, 13, 17];
 
@@ -477,42 +886,60 @@
       x /= indices.length;
       y /= indices.length;
 
+      // 自拍鏡頭以「鏡子」直覺操作
+      // 所以 X 軸反轉
       return {
         x: 1 - x,
         y
       };
     }
 
+
     function distance2D(a, b) {
       return Math.hypot(a.x - b.x, a.y - b.y);
     }
 
+    // 判斷「側掌起點手勢」：四指伸直且彼此靠近，拇指與食指側明顯分開。
+    // 這是幾何近似，先做成可測試版本，之後可依實際鏡頭結果再調門檻。
     function isStartPose(landmarks) {
       const wrist = landmarks[0];
-      const fingerPairs = [[8, 6], [12, 10], [16, 14], [20, 18]];
+      const fingerPairs = [
+        [8, 6],   // 食指 tip / PIP
+        [12, 10], // 中指
+        [16, 14], // 無名指
+        [20, 18]  // 小指
+      ];
+
       const fingersExtended = fingerPairs.every(([tip, pip]) =>
         distance2D(landmarks[tip], wrist) > distance2D(landmarks[pip], wrist) * 1.08
       );
+
       const fingertipsClose =
         distance2D(landmarks[8], landmarks[12]) < 0.10 &&
         distance2D(landmarks[12], landmarks[16]) < 0.10 &&
         distance2D(landmarks[16], landmarks[20]) < 0.11;
+
       const thumbSeparated =
         distance2D(landmarks[4], landmarks[5]) > 0.11 ||
         distance2D(landmarks[4], landmarks[8]) > 0.16;
+
       return fingersExtended && fingertipsClose && thumbSeparated;
     }
 
     function handleStartPose(landmarks, position, now) {
       const pose = isStartPose(landmarks);
+
       if (pose) {
         startPosePoint = { x: position.x, y: position.y };
+
         if (!startPoseSince) {
           startPoseSince = now;
           startPoseConfirmed = false;
         }
+
         const held = now - startPoseSince;
         const progress = Math.min(100, Math.round(held / START_POSE_HOLD_MS * 100));
+
         if (held >= START_POSE_HOLD_MS) {
           startPoseConfirmed = true;
           gestureStart = null;
@@ -533,12 +960,19 @@
             "Result: 維持手勢以重設起點"
           ], now);
         }
+
+        // 維持起點手勢期間完全不判斷滑動
         return true;
       }
 
+      // 剛從起點手勢放開：以最後的起點手勢位置作為新的移動起點
       if (startPoseSince) {
         if (startPoseConfirmed && startPosePoint) {
-          gestureStart = { x: startPosePoint.x, y: startPosePoint.y, time: now };
+          gestureStart = {
+            x: startPosePoint.x,
+            y: startPosePoint.y,
+            time: now
+          };
           lastPosition = { ...startPosePoint };
           gestureStatus.textContent = "起點已設定，開始移動";
           setDebug([
@@ -548,10 +982,12 @@
             "Result: 從新起點開始判斷"
           ], now, true);
         }
+
         startPoseSince = 0;
         startPoseConfirmed = false;
         startPosePoint = null;
       }
+
       return false;
     }
 
@@ -575,6 +1011,7 @@
     function processHandMovement(position, now) {
       lastHandSeenAt = now;
 
+      // 一次手勢完成後短暫冷卻，避免同一個揮動重複觸發
       if (now - lastGestureAt < GESTURE_COOLDOWN_MS) {
         const left = Math.max(0, GESTURE_COOLDOWN_MS - (now - lastGestureAt));
         setDebug([
@@ -586,6 +1023,7 @@
         return;
       }
 
+      // 第一次看到手：只建立起點，不立即判斷
       if (!gestureStart) {
         gestureStart = { x: position.x, y: position.y, time: now };
         lastPosition = position;
@@ -600,6 +1038,7 @@
 
       const elapsed = now - gestureStart.time;
 
+      // 超過時間仍沒有完成手勢，就把目前位置當新起點
       if (elapsed > GESTURE_WINDOW_MS) {
         gestureStart = { x: position.x, y: position.y, time: now };
         lastPosition = position;
@@ -621,14 +1060,17 @@
       let reason = "繼續移動";
       let gesture = null;
 
+      // 上滑：往上移動距離足夠，而且垂直位移要略大於水平位移
       if (dy < -UP_THRESHOLD && absY > absX * DIRECTION_RATIO) {
         gesture = "UP";
         reason = "上滑成立";
       }
+      // 左右滑：水平移動距離足夠，而且水平位移要略大於垂直位移
       else if (absX > HORIZONTAL_THRESHOLD && absX > absY * DIRECTION_RATIO) {
         gesture = dx < 0 ? "LEFT" : "RIGHT";
         reason = gesture === "LEFT" ? "左滑成立" : "右滑成立";
       }
+      // 速度太慢只做提示，不直接丟掉整段軌跡
       else if (speed < MIN_MOVEMENT_SPEED && elapsed > 300) {
         reason = "移動偏慢，但仍在等待距離";
       }
@@ -670,15 +1112,21 @@
       const now = performance.now();
 
       if (webcam.readyState >= 2) {
-        const result = handLandmarker.detectForVideo(webcam, now);
+        const result = handLandmarker.detectForVideo(
+          webcam,
+          now
+        );
 
         if (result.landmarks?.length > 0) {
           const hand = result.landmarks[0];
           const position = getPalmCenter(hand);
+
+          // 起點手勢優先於左右 / 上滑判斷
           if (!handleStartPose(hand, position, now)) {
             processHandMovement(position, now);
           }
         } else {
+          // 手離開畫面一小段時間就重設起點
           if (now - lastHandSeenAt > 250) {
             gestureStart = null;
             lastPosition = null;
@@ -694,6 +1142,9 @@
       requestAnimationFrame(detectLoop);
     }
 
+    // ==========================================
+    // 5. 開始遊戲
+    // ==========================================
     async function startGame() {
       startBtn.disabled = true;
       startBtn.textContent = "準備中…";
@@ -732,6 +1183,16 @@
 
     startBtn.addEventListener("click", startGame);
 
+    debugToggle.addEventListener("click", () => {
+      const isOpen = debugPanel.classList.toggle("open");
+      debugToggle.classList.toggle("active", isOpen);
+      debugToggle.setAttribute("aria-expanded", String(isOpen));
+    });
+
+    // ==========================================
+    // 6. 鍵盤測試
+    // 沒鏡頭時可以先測遊戲流程
+    // ==========================================
     window.addEventListener("keydown", (event) => {
       if (!gameScreen.classList.contains("active")) return;
 
