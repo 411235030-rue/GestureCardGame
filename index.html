@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>手勢抽卡遊戲</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #fff4f7, #f3efff);
+      color: #2b2330;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .screen {
+      width: 100vw;
+      height: 100vh;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      padding: 24px;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    /* 歡迎畫面 */
+    #welcomeScreen h1 {
+      font-size: clamp(40px, 7vw, 82px);
+      margin: 0 0 16px;
+    }
+
+    #welcomeScreen p {
+      font-size: 18px;
+      opacity: 0.7;
+      margin: 0 0 28px;
+    }
+
+    #startBtn {
+      border: 0;
+      border-radius: 999px;
+      padding: 16px 34px;
+      font-size: 20px;
+      font-weight: 700;
+      background: #2b2330;
+      color: white;
+      box-shadow: 0 14px 35px rgba(43, 35, 48, 0.18);
+      transition: transform 0.2s ease;
+    }
+
+    #startBtn:hover {
+      transform: translateY(-2px);
+    }
+
+    #startBtn:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    /* 遊戲畫面 */
+    #gameScreen {
+      position: relative;
+    }
+
+    .topbar {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 25px rgba(0,0,0,.07);
+      z-index: 5;
+      font-size: 14px;
+    }
+
+    #cameraDot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #aaa;
+    }
+
+    #cameraDot.on {
+      background: #2ecc71;
+      box-shadow: 0 0 0 5px rgba(46, 204, 113, .14);
+    }
+
+    .card-stage {
+      width: min(82vw, 420px);
+      aspect-ratio: 2.5 / 3.5;
+      perspective: 1200px;
+      position: relative;
+    }
+
+    .card {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+      transition:
+        transform 0.55s cubic-bezier(.2,.8,.2,1),
+        opacity 0.35s ease;
+      border-radius: 28px;
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 28px;
+      backface-visibility: hidden;
+      overflow: hidden;
+      box-shadow: 0 30px 70px rgba(63, 45, 68, 0.25);
+      border: 8px solid rgba(255,255,255,.85);
+    }
+
+    .card-back {
+      background:
+        radial-gradient(circle at 25% 20%, rgba(255,255,255,.4), transparent 26%),
+        linear-gradient(145deg, #7b5cff, #e89ac7);
+      display: grid;
+      place-items: center;
+      color: white;
+      text-align: center;
+    }
+
+    .card-back span {
+      font-size: 72px;
+    }
+
+    .card-back small {
+      display: block;
+      margin-top: 10px;
+      font-size: 16px;
+      letter-spacing: .16em;
+      opacity: .9;
+    }
+
+    .card-front {
+      transform: rotateY(180deg);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      color: white;
+    }
+
+    .card-front .number {
+      font-size: 14px;
+      letter-spacing: .14em;
+      opacity: .75;
+    }
+
+    .card-front h2 {
+      font-size: 42px;
+      margin: 8px 0 4px;
+    }
+
+    .card-front p {
+      margin: 0;
+      opacity: .88;
+    }
+
+    .card.flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card.fly-left {
+      transform: translateX(-135vw) rotate(-18deg);
+      opacity: 0;
+    }
+
+    .card.fly-right {
+      transform: translateX(135vw) rotate(18deg);
+      opacity: 0;
+    }
+
+    .hint {
+      position: absolute;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92vw, 620px);
+      text-align: center;
+      line-height: 1.7;
+      font-size: 14px;
+      opacity: .72;
+    }
+
+    #gestureStatus {
+      font-weight: 800;
+      opacity: 1;
+    }
+
+    /* 鏡頭存在，但使用者看不到 */
+    #webcam {
+      position: fixed;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+      left: -9999px;
+      top: -9999px;
+    }
+
+    .error-box {
+      max-width: 540px;
+      background: rgba(255,255,255,.9);
+      padding: 18px 20px;
+      border-radius: 18px;
+      margin-top: 20px;
+      display: none;
+      line-height: 1.6;
+      text-align: left;
+    }
+
+    /* 每張測試卡的底色 */
+    .front-0 { background: linear-gradient(145deg, #ff8fb2, #8c5fff); }
+    .front-1 { background: linear-gradient(145deg, #6ed6d1, #2878c7); }
+    .front-2 { background: linear-gradient(145deg, #f6b45f, #e65f87); }
+    .front-3 { background: linear-gradient(145deg, #91c96c, #4c8c6c); }
+    .front-4 { background: linear-gradient(145deg, #9588ff, #5c4ec7); }
+
+    @media (max-width: 520px) {
+      .card-stage {
+        width: min(84vw, 360px);
+      }
+
+      .card-front h2 {
+        font-size: 34px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <section id="welcomeScreen" class="screen active">
+    <h1>抽卡時間 ✨</h1>
+    <p>用手勢翻牌與切換卡片</p>
+    <button id="startBtn">開始玩</button>
+
+    <div id="errorBox" class="error-box"></div>
+  </section>
+
+  <section id="gameScreen" class="screen">
+    <div class="topbar">
+      <span id="cameraDot"></span>
+      <span id="cameraText">準備鏡頭中</span>
+      <span>・</span>
+      <span id="cardCounter">1 / 5</span>
+    </div>
+
+    <div class="card-stage">
+      <div id="card" class="card">
+        <div class="card-face card-back">
+          <div>
+            <span>✦</span>
+            <small>MYSTERY CARD</small>
+          </div>
+        </div>
+
+        <div id="cardFront" class="card-face card-front front-0">
+          <div class="number" id="cardNumber">CARD 01</div>
+          <h2 id="cardTitle">Luna</h2>
+          <p id="cardText">第一張測試卡</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint">
+      <div id="gestureStatus">把手放到鏡頭前</div>
+      ← 左滑：下一張　　↑ 上滑：翻牌　　→ 右滑：上一張
+      <br />
+      測試時也可以用鍵盤：A / W / D
+    </div>
+  </section>
+
+  <video id="webcam" autoplay playsinline muted></video>
+
+  <script type="module">
+    import {
+      HandLandmarker,
+      FilesetResolver
+    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm";
+
+    // ==========================================
+    // 1. 固定測試卡
+    // 之後你只要把這裡換成真正卡片資料 / 圖片即可
+    // ==========================================
+    const cards = [
+      { title: "Luna", text: "第一張測試卡", className: "front-0" },
+      { title: "Mira", text: "第二張測試卡", className: "front-1" },
+      { title: "Aster", text: "第三張測試卡", className: "front-2" },
+      { title: "Ivy", text: "第四張測試卡", className: "front-3" },
+      { title: "Nova", text: "第五張測試卡", className: "front-4" }
+    ];
+
+    // ==========================================
+    // 2. DOM
+    // ==========================================
+    const welcomeScreen = document.querySelector("#welcomeScreen");
+    const gameScreen = document.querySelector("#gameScreen");
+    const startBtn = document.querySelector("#startBtn");
+    const webcam = document.querySelector("#webcam");
+
+    const card = document.querySelector("#card");
+    const cardFront = document.querySelector("#cardFront");
+    const cardTitle = document.querySelector("#cardTitle");
+    const cardText = document.querySelector("#cardText");
+    const cardNumber = document.querySelector("#cardNumber");
+    const cardCounter = document.querySelector("#cardCounter");
+
+    const cameraDot = document.querySelector("#cameraDot");
+    const cameraText = document.querySelector("#cameraText");
+    const gestureStatus = document.querySelector("#gestureStatus");
+    const errorBox = document.querySelector("#errorBox");
+
+    // ==========================================
+    // 3. 遊戲狀態
+    // ==========================================
+    let currentIndex = 0;
+
+    // 哪些卡已經翻開過
+    // 依照目前需求：翻開後不能再翻回去
+    const revealed = new Set();
+
+    let isAnimating = false;
+
+    function updateCard() {
+      const data = cards[currentIndex];
+
+      cardTitle.textContent = data.title;
+      cardText.textContent = data.text;
+      cardNumber.textContent =
+        `CARD ${String(currentIndex + 1).padStart(2, "0")}`;
+
+      cardCounter.textContent =
+        `${currentIndex + 1} / ${cards.length}`;
+
+      cardFront.className =
+        `card-face card-front ${data.className}`;
+
+      card.className = "card";
+
+      if (revealed.has(currentIndex)) {
+        card.classList.add("flipped");
+      }
+    }
+
+    function flipCard() {
+      if (isAnimating) return;
+      if (revealed.has(currentIndex)) return;
+
+      revealed.add(currentIndex);
+      card.classList.add("flipped");
+
+      gestureStatus.textContent = "↑ 翻牌";
+    }
+
+    function nextCard() {
+      if (isAnimating) return;
+
+      // 已經最後一張就不再往後
+      if (currentIndex >= cards.length - 1) {
+        gestureStatus.textContent = "已經是最後一張";
+        return;
+      }
+
+      isAnimating = true;
+      gestureStatus.textContent = "← 下一張";
+      card.classList.add("fly-left");
+
+      setTimeout(() => {
+        currentIndex++;
+        updateCard();
+        isAnimating = false;
+      }, 360);
+    }
+
+    function previousCard() {
+      if (isAnimating) return;
+
+      // 已經第一張就不再往前
+      if (currentIndex <= 0) {
+        gestureStatus.textContent = "已經是第一張";
+        return;
+      }
+
+      isAnimating = true;
+      gestureStatus.textContent = "→ 上一張";
+      card.classList.add("fly-right");
+
+      setTimeout(() => {
+        currentIndex--;
+        updateCard();
+        isAnimating = false;
+      }, 360);
+    }
+
+    // ==========================================
+    // 4. MediaPipe 手部辨識
+    // ==========================================
+    let handLandmarker = null;
+    let cameraStream = null;
+    let detectionStarted = false;
+
+    // 手勢追蹤
+    let gestureStart = null;
+    let lastHandSeenAt = 0;
+    let lastGestureAt = 0;
+
+    // 可以在這裡調靈敏度
+    const HORIZONTAL_THRESHOLD = 0.18;
+    const UP_THRESHOLD = 0.16;
+
+    // 從開始移動到判定手勢，最多允許多久
+    const GESTURE_WINDOW_MS = 850;
+
+    // 每次成功手勢後，避免連續誤觸
+    const GESTURE_COOLDOWN_MS = 850;
+
+    async function createHandLandmarker() {
+      cameraText.textContent = "載入手部辨識";
+
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm"
+      );
+
+      handLandmarker = await HandLandmarker.createFromOptions(
+        vision,
+        {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            delegate: "GPU"
+          },
+          runningMode: "VIDEO",
+          numHands: 1,
+          minHandDetectionConfidence: 0.55,
+          minHandPresenceConfidence: 0.55,
+          minTrackingConfidence: 0.55
+        }
+      );
+    }
+
+    async function startCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("這個瀏覽器不支援相機存取。");
+      }
+
+      cameraText.textContent = "等待相機權限";
+
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      webcam.srcObject = cameraStream;
+
+      await new Promise((resolve) => {
+        webcam.onloadedmetadata = resolve;
+      });
+
+      await webcam.play();
+
+      cameraDot.classList.add("on");
+      cameraText.textContent = "手勢辨識中";
+    }
+
+    // 取手掌中心，會比只追某一根手指穩
+    function getPalmCenter(landmarks) {
+      const indices = [0, 5, 9, 13, 17];
+
+      let x = 0;
+      let y = 0;
+
+      for (const index of indices) {
+        x += landmarks[index].x;
+        y += landmarks[index].y;
+      }
+
+      x /= indices.length;
+      y /= indices.length;
+
+      // 自拍鏡頭以「鏡子」直覺操作
+      // 所以 X 軸反轉
+      return {
+        x: 1 - x,
+        y
+      };
+    }
+
+    function resetGestureTracking(position = null, now = performance.now()) {
+      gestureStart = position
+        ? {
+            x: position.x,
+            y: position.y,
+            time: now
+          }
+        : null;
+    }
+
+    function processHandMovement(position, now) {
+      lastHandSeenAt = now;
+
+      // 剛完成一個手勢時，暫停一下
+      if (now - lastGestureAt < GESTURE_COOLDOWN_MS) {
+        resetGestureTracking(position, now);
+        return;
+      }
+
+      if (!gestureStart) {
+        resetGestureTracking(position, now);
+        gestureStatus.textContent = "偵測到手 ✓";
+        return;
+      }
+
+      const elapsed = now - gestureStart.time;
+
+      // 太久沒形成手勢，重新抓起點
+      if (elapsed > GESTURE_WINDOW_MS) {
+        resetGestureTracking(position, now);
+        return;
+      }
+
+      const dx = position.x - gestureStart.x;
+      const dy = position.y - gestureStart.y;
+
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+
+      let gesture = null;
+
+      // 上滑：Y 變小
+      if (
+        dy < -UP_THRESHOLD &&
+        absY > absX * 1.15
+      ) {
+        gesture = "UP";
+      }
+
+      // 水平手勢
+      else if (
+        absX > HORIZONTAL_THRESHOLD &&
+        absX > absY * 1.2
+      ) {
+        if (dx < 0) {
+          gesture = "LEFT";
+        } else {
+          gesture = "RIGHT";
+        }
+      }
+
+      if (!gesture) return;
+
+      lastGestureAt = now;
+      resetGestureTracking(position, now);
+
+      if (gesture === "LEFT") {
+        nextCard();
+      }
+
+      if (gesture === "RIGHT") {
+        previousCard();
+      }
+
+      if (gesture === "UP") {
+        flipCard();
+      }
+    }
+
+    function detectLoop() {
+      if (!detectionStarted || !handLandmarker) return;
+
+      const now = performance.now();
+
+      if (webcam.readyState >= 2) {
+        const result = handLandmarker.detectForVideo(
+          webcam,
+          now
+        );
+
+        if (result.landmarks?.length > 0) {
+          const hand = result.landmarks[0];
+          const position = getPalmCenter(hand);
+          processHandMovement(position, now);
+        } else {
+          // 手離開畫面一小段時間就重設起點
+          if (now - lastHandSeenAt > 250) {
+            gestureStart = null;
+            gestureStatus.textContent = "把手放到鏡頭前";
+          }
+        }
+      }
+
+      requestAnimationFrame(detectLoop);
+    }
+
+    // ==========================================
+    // 5. 開始遊戲
+    // ==========================================
+    async function startGame() {
+      startBtn.disabled = true;
+      startBtn.textContent = "準備中…";
+      errorBox.style.display = "none";
+
+      try {
+        if (!handLandmarker) {
+          await createHandLandmarker();
+        }
+
+        await startCamera();
+
+        welcomeScreen.classList.remove("active");
+        gameScreen.classList.add("active");
+
+        updateCard();
+
+        detectionStarted = true;
+        requestAnimationFrame(detectLoop);
+      } catch (error) {
+        console.error(error);
+
+        startBtn.disabled = false;
+        startBtn.textContent = "重新嘗試";
+
+        errorBox.style.display = "block";
+        errorBox.innerHTML = `
+          <strong>無法啟動鏡頭或手勢辨識。</strong><br>
+          ${error.message}<br><br>
+          請確認：<br>
+          1. 已允許瀏覽器使用相機<br>
+          2. 使用 localhost 或 HTTPS 開啟網站
+        `;
+      }
+    }
+
+    startBtn.addEventListener("click", startGame);
+
+    // ==========================================
+    // 6. 鍵盤測試
+    // 沒鏡頭時可以先測遊戲流程
+    // ==========================================
+    window.addEventListener("keydown", (event) => {
+      if (!gameScreen.classList.contains("active")) return;
+
+      const key = event.key.toLowerCase();
+
+      if (key === "a" || event.key === "ArrowLeft") {
+        nextCard();
+      }
+
+      if (key === "d" || event.key === "ArrowRight") {
+        previousCard();
+      }
+
+      if (key === "w" || event.key === "ArrowUp") {
+        flipCard();
+      }
+    });
+  </script>
+</body>
+</html>
