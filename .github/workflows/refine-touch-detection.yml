@@ -1,0 +1,34 @@
+name: Refine touch mode detection
+
+on:
+  push:
+    paths:
+      - '.github/workflows/refine-touch-detection.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refine touch detection
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          old = '''    const isTouchMode =\n      window.matchMedia("(pointer: coarse)").matches ||\n      navigator.maxTouchPoints > 0;'''
+          new = '''    const isTouchMode =\n      window.matchMedia("(pointer: coarse) and (hover: none)").matches ||\n      (window.innerWidth <= 860 && navigator.maxTouchPoints > 0);'''
+          if old not in text:
+            raise SystemExit('touch detection pattern not found')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Refine mobile touch mode detection"
+          git push
