@@ -1,0 +1,266 @@
+name: Continuous fist gesture mode
+
+on:
+  push:
+    paths:
+      - '.github/workflows/continuous-fist-gesture.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch fist and continuous gesture mode
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+
+          text = text.replace('const RIGHT_HAND_GRACE_MS = 250;', '''const RIGHT_HAND_GRACE_MS = 500;
+    const HAND_LOST_RESET_MS = 1000;
+    const REACQUIRE_BASELINE_MS = 300;''', 1)
+
+          text = text.replace('// 起點手勢：四指併攏伸直、拇指分開，維持一小段時間後重設起點', '// 起點手勢：握拳維持一小段時間，啟動或重新設定操作起點', 1)
+
+          start_pose_pattern = r'''    // 判斷「側掌起點手勢」：.*?\n    function isStartPose\(landmarks\) \{.*?\n    \}\n\n    function handleStartPose'''
+          start_pose_replacement = '''    // 判斷「握拳起點手勢」：至少三根手指明顯彎曲，指尖集中在手掌附近。
+    // 使用手指關節的相對距離，降低手靠近 / 遠離鏡頭造成的影響。
+    function isStartPose(landmarks) {
+      const wrist = landmarks[0];
+      const fingerPairs = [
+        [8, 6],   // 食指 tip / PIP
+        [12, 10], // 中指
+        [16, 14], // 無名指
+        [20, 18]  // 小指
+      ];
+
+      const curledCount = fingerPairs.filter(([tip, pip]) =>
+        distance2D(landmarks[tip], wrist) < distance2D(landmarks[pip], wrist) * 1.10
+      ).length;
+
+      const palmWidth = Math.max(distance2D(landmarks[5], landmarks[17]), 0.001);
+      const palmCenter = {
+        x: (landmarks[5].x + landmarks[9].x + landmarks[13].x + landmarks[17].x) / 4,
+        y: (landmarks[5].y + landmarks[9].y + landmarks[13].y + landmarks[17].y) / 4
+      };
+
+      const compactTips = [8, 12, 16, 20].filter((tip) =>
+        distance2D(landmarks[tip], palmCenter) < palmWidth * 1.35
+      ).length;
+
+      return curledCount >= 3 && compactTips >= 3;
+    }
+
+    function handleStartPose'''
+          text, n = re.subn(start_pose_pattern, start_pose_replacement, text, count=1, flags=re.S)
+          if n != 1:
+            raise SystemExit('start pose block not found')
+
+          text = text.replace('gestureStatus.textContent = "起點已設定 ✓";', 'gestureStatus.textContent = "握拳起點已設定 ✓";', 1)
+          text = text.replace('"Pose: START ✓"', '"Pose: FIST ✓"')
+          text = text.replace('"Pose: START"', '"Pose: FIST"')
+          text = text.replace('"Result: 起點已設定，放開手勢後開始操作"', '"Result: 握拳完成，放開後進入連續操作模式"')
+          text = text.replace('"Result: 維持手勢以重設起點"', '"Result: 維持握拳以設定操作起點"')
+          text = text.replace('gestureStatus.textContent = "起點已設定，開始移動";', 'gestureStatus.textContent = "操作模式已啟用 ✓";', 1)
+          text = text.replace('"Result: 從新起點開始判斷"', '"Result: 連續操作模式已啟用"')
+
+          process_pattern = r'''    function processHandMovement\(position, now\) \{.*?\n    \}\n\n    function selectPreferredHand'''
+          process_replacement = '''    function processHandMovement(position, now) {
+      lastHandSeenAt = now;
+
+      // 只需要握拳一次啟動；操作模式解除前可連續左右滑 / 上滑。
+      if (!gestureArmed) {
+        gestureStart = null;
+        lastPosition = null;
+        gestureStatus.textContent = "請先握拳設定起點";
+        setDebug([
+          "Hand: YES",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          "Result: LOCKED · 請先握拳"
+        ], now);
+        return;
+      }
+
+      // 冷卻期間持續跟著手更新基準點。
+      // 這樣做完左滑後把手移回中央，不會被誤判成右滑。
+      if (now - lastGestureAt < GESTURE_COOLDOWN_MS) {
+        gestureStart = {
+          x: position.x,
+          y: position.y,
+          time: now
+        };
+        lastPosition = { ...position };
+
+        const left = Math.max(0, GESTURE_COOLDOWN_MS - (now - lastGestureAt));
+        setDebug([
+          "Hand: YES",
+          "Mode: ACTIVE",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          "Result: 冷卻中 · 持續校正起點",
+          `剩餘: ${Math.ceil(left)} ms`
+        ], now);
+        return;
+      }
+
+      // 操作模式中沒有基準點時，直接以目前位置重新抓取，不要求再次握拳。
+      if (!gestureStart) {
+        gestureStart = {
+          x: position.x,
+          y: position.y,
+          time: now
+        };
+        lastPosition = { ...position };
+        gestureStatus.textContent = "操作中 · 左右切換 / 上滑翻牌";
+        setDebug([
+          "Hand: YES",
+          "Mode: ACTIVE",
+          "Result: 已重新抓取移動起點"
+        ], now, true);
+        return;
+      }
+
+      const elapsed = now - gestureStart.time;
+
+      // 移動太久沒有成立手勢時，只更新基準點，不解除操作模式。
+      if (elapsed > GESTURE_WINDOW_MS) {
+        gestureStart = {
+          x: position.x,
+          y: position.y,
+          time: now
+        };
+        lastPosition = { ...position };
+        gestureStatus.textContent = "操作中 · 已重新抓取起點";
+        setDebug([
+          "Hand: YES",
+          "Mode: ACTIVE",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          "Result: TIMEOUT · 自動更新起點"
+        ], now, true);
+        return;
+      }
+
+      const dx = position.x - gestureStart.x;
+      const dy = position.y - gestureStart.y;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      const distance = Math.hypot(dx, dy);
+      const speed = distance / Math.max(elapsed, 1);
+
+      let reason = "繼續移動";
+      let gesture = null;
+
+      if (dy < -UP_THRESHOLD && absY > absX * DIRECTION_RATIO) {
+        gesture = "UP";
+        reason = "上滑成立";
+      }
+      else if (absX > HORIZONTAL_THRESHOLD && absX > absY * DIRECTION_RATIO) {
+        gesture = dx < 0 ? "LEFT" : "RIGHT";
+        reason = gesture === "LEFT" ? "左滑成立" : "右滑成立";
+      }
+      else if (speed < MIN_MOVEMENT_SPEED && elapsed > 300) {
+        reason = "移動偏慢，但仍在等待距離";
+      }
+      else if (absX >= absY) {
+        reason = `水平進度 ${Math.min(100, Math.round(absX / HORIZONTAL_THRESHOLD * 100))}%`;
+      }
+      else if (dy < 0) {
+        reason = `上滑進度 ${Math.min(100, Math.round(absY / UP_THRESHOLD * 100))}%`;
+      }
+      else {
+        reason = "目前是往下移動，不觸發";
+      }
+
+      setDebug([
+        "Hand: YES",
+        "Mode: ACTIVE",
+        `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+        `dx: ${dx.toFixed(3)}  dy: ${dy.toFixed(3)}`,
+        `speed: ${speed.toFixed(5)}`,
+        `elapsed: ${Math.round(elapsed)} ms`,
+        `Result: ${gesture ? "✓" : "·"} ${reason}`
+      ], now, Boolean(gesture));
+
+      lastPosition = position;
+      if (!gesture) return;
+
+      lastGestureAt = now;
+
+      // 成功後保持 ACTIVE；冷卻期間會跟著手重新校正下一個起點。
+      gestureArmed = true;
+      gestureStart = {
+        x: position.x,
+        y: position.y,
+        time: now
+      };
+      lastPosition = { ...position };
+
+      if (gesture === "LEFT") nextCard();
+      if (gesture === "RIGHT") previousCard();
+      if (gesture === "UP") flipCard();
+    }
+
+    function selectPreferredHand'''
+          text, n = re.subn(process_pattern, process_replacement, text, count=1, flags=re.S)
+          if n != 1:
+            raise SystemExit('processHandMovement block not found')
+
+          text = text.replace('// 剛才使用右手時，先保留 250ms，避免兩手同框時控制權來回跳。', '// 剛才使用右手時，先保留 500ms，避免兩手同框時控制權來回跳。', 1)
+
+          selected_old = '''          const hand = selectedHand.landmarks;
+          const position = getPalmCenter(hand);
+          lastHandSeenAt = now;
+
+          // 起點手勢優先於左右 / 上滑判斷；一次起點只解鎖一次動作。
+          if (!handleStartPose(hand, position, now)) {
+            processHandMovement(position, now);
+          }'''
+          selected_new = '''          const hand = selectedHand.landmarks;
+          const position = getPalmCenter(hand);
+          const handGap = lastHandSeenAt ? now - lastHandSeenAt : 0;
+          lastHandSeenAt = now;
+
+          // 短暫掉幀後重新看到手時，先把目前位置當新基準，避免瞬間大跳觸發。
+          if (gestureArmed && handGap > REACQUIRE_BASELINE_MS) {
+            gestureStart = {
+              x: position.x,
+              y: position.y,
+              time: now
+            };
+            lastPosition = { ...position };
+          }
+
+          // 握拳可啟動 / 重新校正操作模式；啟動後可連續操作。
+          if (!handleStartPose(hand, position, now)) {
+            processHandMovement(position, now);
+          }'''
+          if selected_old not in text:
+            raise SystemExit('selected hand block not found')
+          text = text.replace(selected_old, selected_new, 1)
+
+          text = text.replace('if (!waitingForRight && now - lastHandSeenAt > 250) {', 'if (!waitingForRight && now - lastHandSeenAt > HAND_LOST_RESET_MS) {', 1)
+          text = text.replace('gestureStatus.textContent = "把手放到鏡頭前";', 'gestureStatus.textContent = "手已離開鏡頭 · 請重新握拳";', 1)
+          text = text.replace('setDebug(["Hand: NO", "Result: 沒偵測到可用的手"], now, true);', 'setDebug(["Hand: NO", "Mode: LOCKED", "Result: 手離開超過 1 秒，請重新握拳"], now, true);', 1)
+
+          text = text.replace('用手勢設定起點，左右滑動切換卡片，再往上滑翻開你的收藏照片。', '先握拳設定操作起點，之後可連續左右滑動切換卡片，再往上滑翻開你的收藏照片。', 1)
+          text = text.replace('側掌設定起點', '握拳設定起點')
+          text = text.replace('側掌 · 設定起點', '握拳 · 設定起點')
+          text = text.replace('請先設定起點手勢', '請先握拳設定起點')
+          text = text.replace('請重新設定起點手勢', '請重新握拳設定起點')
+
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Use fist activation with continuous gestures"
+          git push
