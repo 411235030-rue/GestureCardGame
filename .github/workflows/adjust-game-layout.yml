@@ -1,4 +1,4 @@
-name: Adjust game layout
+name: Adjust game layout spacing
 
 on:
   push:
@@ -13,28 +13,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch game layout CSS
+      - name: Fix spacing
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           p = Path('index.html')
           text = p.read_text(encoding='utf-8')
-          replacements = [
-              ('padding: 88px 28px 30px;', 'padding: 74px 28px 30px;'),
-              ('height: 70px;', 'height: 58px;'),
-              ('top: 92px;', 'top: 74px;'),
-              ('margin-top: 18px;', 'margin-top: 4px;'),
-              ('height: min(67vh, 560px);\n      display: grid;', 'height: min(67vh, 560px);\n      transform: translateY(-24px);\n      display: grid;'),
-              ('.game-header { height: 62px; }', '.game-header { height: 54px; }'),
-              ('.topbar { top: 78px; }', '.topbar { top: 68px; }'),
-              ('#gameScreen { padding-top: 78px; }', '#gameScreen { padding-top: 66px; }'),
-          ]
-          for old, new in replacements:
-              if old not in text:
-                  print(f'Warning: pattern not found: {old}')
-              else:
-                  text = text.replace(old, new, 1)
+          old_error = '''    .error-box {
+      display: none;
+      margin-top: 4px;'''
+          new_error = '''    .error-box {
+      display: none;
+      margin-top: 18px;'''
+          old_game = '''    .game-main {
+      width: 100%;
+      display: grid;
+      place-items: center;
+      margin-top: 18px;
+    }'''
+          new_game = '''    .game-main {
+      width: 100%;
+      display: grid;
+      place-items: center;
+      margin-top: 4px;
+    }'''
+          if old_error in text:
+              text = text.replace(old_error, new_error, 1)
+          if old_game in text:
+              text = text.replace(old_game, new_game, 1)
           p.write_text(text, encoding='utf-8')
           PY
       - name: Commit changes
@@ -42,5 +49,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
-          git commit -m "Move game cards up and shrink header" || exit 0
+          git commit -m "Fine-tune game layout spacing" || exit 0
           git push
