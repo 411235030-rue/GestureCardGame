@@ -38,7 +38,6 @@
       display: flex;
     }
 
-    /* 歡迎畫面 */
     #welcomeScreen h1 {
       font-size: clamp(40px, 7vw, 82px);
       margin: 0 0 16px;
@@ -71,7 +70,6 @@
       cursor: wait;
     }
 
-    /* 遊戲畫面 */
     #gameScreen {
       position: relative;
     }
@@ -212,7 +210,23 @@
       opacity: 1;
     }
 
-    /* 鏡頭存在，但使用者看不到 */
+    #debugPanel {
+      position: fixed;
+      right: 14px;
+      top: 14px;
+      z-index: 9999;
+      min-width: 230px;
+      background: rgba(0, 0, 0, 0.78);
+      color: #fff;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-family: Consolas, monospace;
+      white-space: pre-line;
+      font-size: 12px;
+      line-height: 1.45;
+      pointer-events: none;
+    }
+
     #webcam {
       position: fixed;
       width: 1px;
@@ -234,7 +248,6 @@
       text-align: left;
     }
 
-    /* 每張測試卡的底色 */
     .front-0 { background: linear-gradient(145deg, #ff8fb2, #8c5fff); }
     .front-1 { background: linear-gradient(145deg, #6ed6d1, #2878c7); }
     .front-2 { background: linear-gradient(145deg, #f6b45f, #e65f87); }
@@ -267,22 +280,22 @@
       <span id="cameraDot"></span>
       <span id="cameraText">準備鏡頭中</span>
       <span>・</span>
-      <span id="cardCounter">1 / 5</span>
+      <span id="cardCounter">1 / 20</span>
     </div>
 
     <div class="card-stage">
       <div id="card" class="card">
         <div class="card-face card-back">
           <div>
-            <span>✦</span>
-            <small>MYSTERY CARD</small>
+            <span id="backNumber">1</span>
+            <small>CARD</small>
           </div>
         </div>
 
         <div id="cardFront" class="card-face card-front front-0">
           <div class="number" id="cardNumber">CARD 01</div>
-          <h2 id="cardTitle">Luna</h2>
-          <p id="cardText">第一張測試卡</p>
+          <h2 id="cardTitle">CARD 1</h2>
+          <p id="cardText">第 1 張測試卡</p>
         </div>
       </div>
     </div>
@@ -295,6 +308,9 @@
     </div>
   </section>
 
+  <div id="debugPanel">Hand: NO
+Result: 等待開始</div>
+
   <video id="webcam" autoplay playsinline muted></video>
 
   <script type="module">
@@ -303,21 +319,12 @@
       FilesetResolver
     } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm";
 
-    // ==========================================
-    // 1. 固定測試卡
-    // 之後你只要把這裡換成真正卡片資料 / 圖片即可
-    // ==========================================
-    const cards = [
-      { title: "Luna", text: "第一張測試卡", className: "front-0" },
-      { title: "Mira", text: "第二張測試卡", className: "front-1" },
-      { title: "Aster", text: "第三張測試卡", className: "front-2" },
-      { title: "Ivy", text: "第四張測試卡", className: "front-3" },
-      { title: "Nova", text: "第五張測試卡", className: "front-4" }
-    ];
+    const cards = Array.from({ length: 20 }, (_, i) => ({
+      title: `CARD ${i + 1}`,
+      text: `第 ${i + 1} 張測試卡`,
+      className: `front-${i % 5}`
+    }));
 
-    // ==========================================
-    // 2. DOM
-    // ==========================================
     const welcomeScreen = document.querySelector("#welcomeScreen");
     const gameScreen = document.querySelector("#gameScreen");
     const startBtn = document.querySelector("#startBtn");
@@ -328,22 +335,17 @@
     const cardTitle = document.querySelector("#cardTitle");
     const cardText = document.querySelector("#cardText");
     const cardNumber = document.querySelector("#cardNumber");
+    const backNumber = document.querySelector("#backNumber");
     const cardCounter = document.querySelector("#cardCounter");
 
     const cameraDot = document.querySelector("#cameraDot");
     const cameraText = document.querySelector("#cameraText");
     const gestureStatus = document.querySelector("#gestureStatus");
     const errorBox = document.querySelector("#errorBox");
+    const debugPanel = document.querySelector("#debugPanel");
 
-    // ==========================================
-    // 3. 遊戲狀態
-    // ==========================================
     let currentIndex = 0;
-
-    // 哪些卡已經翻開過
-    // 依照目前需求：翻開後不能再翻回去
     const revealed = new Set();
-
     let isAnimating = false;
 
     function updateCard() {
@@ -351,6 +353,7 @@
 
       cardTitle.textContent = data.title;
       cardText.textContent = data.text;
+      backNumber.textContent = currentIndex + 1;
       cardNumber.textContent =
         `CARD ${String(currentIndex + 1).padStart(2, "0")}`;
 
@@ -373,14 +376,12 @@
 
       revealed.add(currentIndex);
       card.classList.add("flipped");
-
       gestureStatus.textContent = "↑ 翻牌";
     }
 
     function nextCard() {
       if (isAnimating) return;
 
-      // 已經最後一張就不再往後
       if (currentIndex >= cards.length - 1) {
         gestureStatus.textContent = "已經是最後一張";
         return;
@@ -400,7 +401,6 @@
     function previousCard() {
       if (isAnimating) return;
 
-      // 已經第一張就不再往前
       if (currentIndex <= 0) {
         gestureStatus.textContent = "已經是第一張";
         return;
@@ -417,27 +417,22 @@
       }, 360);
     }
 
-    // ==========================================
-    // 4. MediaPipe 手部辨識
-    // ==========================================
     let handLandmarker = null;
     let cameraStream = null;
     let detectionStarted = false;
 
-    // 手勢追蹤
     let gestureStart = null;
     let lastHandSeenAt = 0;
     let lastGestureAt = 0;
+    let lastPosition = null;
+    let stableFrameCount = 0;
 
-    // 可以在這裡調靈敏度
-    const HORIZONTAL_THRESHOLD = 0.18;
-    const UP_THRESHOLD = 0.16;
-
-    // 從開始移動到判定手勢，最多允許多久
-    const GESTURE_WINDOW_MS = 850;
-
-    // 每次成功手勢後，避免連續誤觸
-    const GESTURE_COOLDOWN_MS = 850;
+    const HORIZONTAL_THRESHOLD = 0.24;
+    const UP_THRESHOLD = 0.22;
+    const GESTURE_WINDOW_MS = 700;
+    const GESTURE_COOLDOWN_MS = 1000;
+    const MIN_MOVEMENT_SPEED = 0.00032;
+    const REQUIRED_STABLE_FRAMES = 3;
 
     async function createHandLandmarker() {
       cameraText.textContent = "載入手部辨識";
@@ -491,7 +486,6 @@
       cameraText.textContent = "手勢辨識中";
     }
 
-    // 取手掌中心，會比只追某一根手指穩
     function getPalmCenter(landmarks) {
       const indices = [0, 5, 9, 13, 17];
 
@@ -506,91 +500,133 @@
       x /= indices.length;
       y /= indices.length;
 
-      // 自拍鏡頭以「鏡子」直覺操作
-      // 所以 X 軸反轉
       return {
         x: 1 - x,
         y
       };
     }
 
-    function resetGestureTracking(position = null, now = performance.now()) {
-      gestureStart = position
-        ? {
-            x: position.x,
-            y: position.y,
-            time: now
-          }
-        : null;
+    function setDebug(lines) {
+      debugPanel.textContent = lines.join("\n");
     }
 
     function processHandMovement(position, now) {
       lastHandSeenAt = now;
 
-      // 剛完成一個手勢時，暫停一下
       if (now - lastGestureAt < GESTURE_COOLDOWN_MS) {
-        resetGestureTracking(position, now);
+        const left = Math.max(0, GESTURE_COOLDOWN_MS - (now - lastGestureAt));
+        setDebug([
+          "Hand: YES",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          "Result: 冷卻中",
+          `剩餘: ${Math.ceil(left)} ms`
+        ]);
+        gestureStart = null;
+        lastPosition = position;
+        stableFrameCount = 0;
         return;
       }
 
-      if (!gestureStart) {
-        resetGestureTracking(position, now);
+      if (!lastPosition) {
+        lastPosition = position;
+        gestureStart = { x: position.x, y: position.y, time: now };
+        setDebug([
+          "Hand: YES",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          "Result: 建立手勢起點"
+        ]);
         gestureStatus.textContent = "偵測到手 ✓";
         return;
       }
 
-      const elapsed = now - gestureStart.time;
+      const frameDx = position.x - lastPosition.x;
+      const frameDy = position.y - lastPosition.y;
+      const frameDistance = Math.hypot(frameDx, frameDy);
 
-      // 太久沒形成手勢，重新抓起點
+      if (frameDistance < 0.006) {
+        stableFrameCount++;
+        if (stableFrameCount >= REQUIRED_STABLE_FRAMES) {
+          gestureStart = { x: position.x, y: position.y, time: now };
+        }
+        setDebug([
+          "Hand: YES",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          `frame move: ${frameDistance.toFixed(4)}`,
+          "Result: 手幾乎沒動"
+        ]);
+        lastPosition = position;
+        return;
+      }
+
+      stableFrameCount = 0;
+
+      if (!gestureStart) {
+        gestureStart = { x: position.x, y: position.y, time: now };
+        lastPosition = position;
+        return;
+      }
+
+      const elapsed = now - gestureStart.time;
       if (elapsed > GESTURE_WINDOW_MS) {
-        resetGestureTracking(position, now);
+        setDebug([
+          "Hand: YES",
+          `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+          `elapsed: ${Math.round(elapsed)} ms`,
+          "Result: 動作太慢，重新取起點"
+        ]);
+        gestureStart = { x: position.x, y: position.y, time: now };
+        lastPosition = position;
         return;
       }
 
       const dx = position.x - gestureStart.x;
       const dy = position.y - gestureStart.y;
-
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
+      const distance = Math.hypot(dx, dy);
+      const speed = distance / Math.max(elapsed, 1);
 
+      let reason = "距離不足";
       let gesture = null;
 
-      // 上滑：Y 變小
-      if (
-        dy < -UP_THRESHOLD &&
-        absY > absX * 1.15
-      ) {
+      if (speed < MIN_MOVEMENT_SPEED) {
+        reason = "速度太慢";
+      } else if (dy < -UP_THRESHOLD && absY > absX * 1.45) {
         gesture = "UP";
+        reason = "上滑成立";
+      } else if (absX > HORIZONTAL_THRESHOLD && absX > absY * 1.45) {
+        gesture = dx < 0 ? "LEFT" : "RIGHT";
+        reason = gesture === "LEFT" ? "左滑成立" : "右滑成立";
+      } else if (absX > HORIZONTAL_THRESHOLD || absY > UP_THRESHOLD) {
+        reason = "方向太斜";
+      } else if (absX >= absY) {
+        reason = `水平距離不足 (${absX.toFixed(3)} / ${HORIZONTAL_THRESHOLD})`;
+      } else {
+        reason = `上滑距離不足 (${absY.toFixed(3)} / ${UP_THRESHOLD})`;
       }
 
-      // 水平手勢
-      else if (
-        absX > HORIZONTAL_THRESHOLD &&
-        absX > absY * 1.2
-      ) {
-        if (dx < 0) {
-          gesture = "LEFT";
-        } else {
-          gesture = "RIGHT";
-        }
-      }
+      setDebug([
+        "Hand: YES",
+        `x: ${position.x.toFixed(3)}  y: ${position.y.toFixed(3)}`,
+        `dx: ${dx.toFixed(3)}  dy: ${dy.toFixed(3)}`,
+        `speed: ${speed.toFixed(5)}`,
+        `elapsed: ${Math.round(elapsed)} ms`,
+        `Result: ${gesture ? "✓" : "✗"} ${reason}`
+      ]);
 
-      if (!gesture) return;
+      if (!gesture) {
+        lastPosition = position;
+        return;
+      }
 
       lastGestureAt = now;
-      resetGestureTracking(position, now);
+      gestureStart = null;
+      lastPosition = null;
+      stableFrameCount = 0;
 
-      if (gesture === "LEFT") {
-        nextCard();
-      }
-
-      if (gesture === "RIGHT") {
-        previousCard();
-      }
-
-      if (gesture === "UP") {
-        flipCard();
-      }
+      if (gesture === "LEFT") nextCard();
+      if (gesture === "RIGHT") previousCard();
+      if (gesture === "UP") flipCard();
     }
 
     function detectLoop() {
@@ -609,10 +645,12 @@
           const position = getPalmCenter(hand);
           processHandMovement(position, now);
         } else {
-          // 手離開畫面一小段時間就重設起點
           if (now - lastHandSeenAt > 250) {
             gestureStart = null;
+            lastPosition = null;
+            stableFrameCount = 0;
             gestureStatus.textContent = "把手放到鏡頭前";
+            setDebug(["Hand: NO", "Result: 沒偵測到手"]);
           }
         }
       }
@@ -620,9 +658,6 @@
       requestAnimationFrame(detectLoop);
     }
 
-    // ==========================================
-    // 5. 開始遊戲
-    // ==========================================
     async function startGame() {
       startBtn.disabled = true;
       startBtn.textContent = "準備中…";
@@ -661,10 +696,6 @@
 
     startBtn.addEventListener("click", startGame);
 
-    // ==========================================
-    // 6. 鍵盤測試
-    // 沒鏡頭時可以先測遊戲流程
-    // ==========================================
     window.addEventListener("keydown", (event) => {
       if (!gameScreen.classList.contains("active")) return;
 
