@@ -1,24 +1,22 @@
 name: Move home cards up
-
 on:
   push:
     paths:
-      - '.github/workflows/move-home-cards-up.yml'
-
+      - .github/workflows/move-home-cards-up.yml
 permissions:
   contents: write
-
 jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Move hero cards upward
-        run: python -c "from pathlib import Path; p=Path('index.html'); s=p.read_text(encoding='utf-8'); old='place-items: center;\\n    }\\n\\n    .hero-art::before'; new='place-items: center;\\n      transform: translateY(-35px);\\n    }\\n\\n    .hero-art::before'; assert old in s; p.write_text(s.replace(old,new,1),encoding='utf-8')"
-      - name: Commit change
+      - name: Patch CSS
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          perl -0pi -e 's/(\.hero-art \{.*?place-items: center;)/$1\n      transform: translateY(-35px);/s' index.html
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m "Move home card stack upward"
+          git commit -m 'Move home card stack upward'
           git push
