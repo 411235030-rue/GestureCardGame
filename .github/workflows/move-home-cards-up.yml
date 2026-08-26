@@ -1,0 +1,46 @@
+name: Move home cards up
+
+on:
+  push:
+    paths:
+      - '.github/workflows/move-home-cards-up.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move hero cards upward
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          old = '''    .hero-art {
+      position: relative;
+      min-height: 570px;
+      display: grid;
+      place-items: center;
+    }'''
+          new = '''    .hero-art {
+      position: relative;
+      min-height: 570px;
+      display: grid;
+      place-items: center;
+      transform: translateY(-35px);
+    }'''
+          if old not in text:
+              raise SystemExit('hero-art block not found')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Move home card stack upward"
+          git push
