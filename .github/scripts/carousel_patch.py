@@ -1,0 +1,330 @@
+from pathlib import Path
+import re
+
+p = Path("index.html")
+text = p.read_text(encoding="utf-8")
+
+carousel_css = r'''    .deck-shell {
+      position: relative;
+      width: min(96vw, 1000px);
+      height: min(67vh, 560px);
+      transform: translateY(-24px);
+      display: grid;
+      place-items: center;
+      perspective: 1500px;
+      --rail-shift: 0px;
+      --slide-distance: min(22.4vw, 196px);
+      --center-scale: 1;
+    }
+
+    .stack-peek {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: min(28vw, 245px);
+      aspect-ratio: 2.5 / 3.5;
+      border-radius: 22px;
+      border: 5px solid rgba(255,255,255,.9);
+      background:
+        radial-gradient(circle at 28% 20%, rgba(255,255,255,.22), transparent 26%),
+        linear-gradient(155deg, #a390a0, #d2a6a5 60%, #edc5bd);
+      box-shadow: 0 18px 42px rgba(84,61,72,.12);
+      color: rgba(255,255,255,.94);
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      pointer-events: none;
+      transform:
+        translate(calc(var(--x) + var(--rail-shift)), -50%)
+        scale(var(--scale))
+        rotateY(var(--ry));
+      transform-origin: center;
+      transition:
+        transform .38s cubic-bezier(.2,.8,.2,1),
+        opacity .32s ease,
+        filter .32s ease,
+        box-shadow .32s ease;
+      opacity: var(--opacity);
+      filter: saturate(.82) brightness(.97);
+    }
+
+    .stack-peek span {
+      font: 500 38px/1 Georgia, serif;
+      opacity: .78;
+    }
+
+    .stack-peek img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #eee5e2;
+    }
+
+    .stack-peek.is-revealed {
+      background: #eee5e2;
+    }
+
+    .stack-peek.sr {
+      border-color: #e5bd4f;
+      box-shadow:
+        0 0 0 1px rgba(255,239,176,.62),
+        0 0 18px rgba(238,194,73,.34),
+        0 18px 42px rgba(84,61,72,.12);
+      animation: srSideGlow 1.65s ease-in-out infinite;
+    }
+
+    @keyframes srSideGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 1px rgba(255,239,176,.5), 0 0 9px rgba(238,194,73,.25), 0 18px 42px rgba(84,61,72,.12);
+      }
+      50% {
+        box-shadow: 0 0 0 1px rgba(255,248,211,.88), 0 0 26px rgba(255,218,101,.58), 0 18px 42px rgba(84,61,72,.12);
+      }
+    }
+
+    #peekPrev3,
+    #peekNext3 { display: none; }
+
+    #peekPrev2 { --x: -195%; --scale: .68; --ry: 30deg; --opacity: .42; z-index: 1; }
+    #peekPrev1 { --x: -130%; --scale: .84; --ry: 20deg; --opacity: .76; z-index: 3; }
+    #peekNext1 { --x: 30%; --scale: .84; --ry: -20deg; --opacity: .76; z-index: 3; }
+    #peekNext2 { --x: 95%; --scale: .68; --ry: -30deg; --opacity: .42; z-index: 1; }
+
+    .stack-peek.is-hidden {
+      opacity: 0 !important;
+      pointer-events: none;
+    }
+
+    .card-stage {
+      width: min(72vw, 310px);
+      aspect-ratio: 2.5 / 3.5;
+      perspective: 1200px;
+      position: relative;
+      z-index: 6;
+      transform: translateX(var(--rail-shift)) scale(var(--center-scale));
+      transition:
+        transform .38s cubic-bezier(.2,.8,.2,1),
+        opacity .3s ease;
+      opacity: 1;
+    }
+
+    .deck-shell.carousel-next {
+      --rail-shift: calc(var(--slide-distance) * -1);
+      --center-scale: .82;
+    }
+
+    .deck-shell.carousel-prev {
+      --rail-shift: var(--slide-distance);
+      --center-scale: .82;
+    }
+
+    .deck-shell.carousel-next .card-stage,
+    .deck-shell.carousel-prev .card-stage {
+      opacity: .42;
+    }
+
+    .deck-shell.carousel-next #peekNext1,
+    .deck-shell.carousel-prev #peekPrev1 {
+      --scale: 1.04;
+      --ry: 0deg;
+      --opacity: 1;
+      z-index: 8;
+      filter: saturate(1) brightness(1);
+    }
+
+    .deck-shell.snap-reset .stack-peek,
+    .deck-shell.snap-reset .card-stage {
+      transition: none !important;
+    }'''
+
+pattern = r'    \.deck-shell \{.*?\n    \.card-stage \{.*?\n    \}\n\n    \.card \{'
+replacement = carousel_css + '\n\n    .card {'
+text, n = re.subn(pattern, replacement, text, count=1, flags=re.S)
+if n != 1:
+    raise SystemExit("desktop carousel CSS block not found")
+
+mobile_old = '''      .deck-shell {
+        width: 100vw;
+        height: min(60svh, 500px);
+        transform: translateY(-6px);
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .card-stage { width: min(74vw, 285px); }
+      .stack-peek { border-width: 4px; border-radius: 18px; }'''
+mobile_new = '''      .deck-shell {
+        width: 100vw;
+        height: min(60svh, 500px);
+        transform: translateY(-6px);
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        --slide-distance: min(44vw, 170px);
+      }
+      .card-stage { width: min(74vw, 285px); }
+      .stack-peek {
+        width: min(44vw, 170px);
+        border-width: 4px;
+        border-radius: 18px;
+      }
+      #peekPrev3,
+      #peekNext3 { display: grid; }
+      #peekPrev3 { --x: -285%; --scale: .44; --ry: 38deg; --opacity: .24; z-index: 0; }
+      #peekPrev2 { --x: -220%; --scale: .56; --ry: 32deg; --opacity: .38; z-index: 1; }
+      #peekPrev1 { --x: -150%; --scale: .74; --ry: 22deg; --opacity: .70; z-index: 3; }
+      #peekNext1 { --x: 50%; --scale: .74; --ry: -22deg; --opacity: .70; z-index: 3; }
+      #peekNext2 { --x: 120%; --scale: .56; --ry: -32deg; --opacity: .38; z-index: 1; }
+      #peekNext3 { --x: 185%; --scale: .44; --ry: -38deg; --opacity: .24; z-index: 0; }'''
+if mobile_old not in text:
+    raise SystemExit("mobile deck CSS block not found")
+text = text.replace(mobile_old, mobile_new, 1)
+
+left_old = '''      <div class="deck-shell">
+        <div id="peekPrev2" class="stack-peek far-top"><span>1</span></div>
+        <div id="peekPrev1" class="stack-peek near-top"><span>1</span></div>
+
+        <div class="card-stage">'''
+left_new = '''      <div class="deck-shell">
+        <div id="peekPrev3" class="stack-peek"><span>1</span></div>
+        <div id="peekPrev2" class="stack-peek"><span>1</span></div>
+        <div id="peekPrev1" class="stack-peek"><span>1</span></div>
+
+        <div class="card-stage">'''
+if left_old not in text:
+    raise SystemExit("left peek HTML block not found")
+text = text.replace(left_old, left_new, 1)
+
+right_old = '''        <div id="peekNext1" class="stack-peek near-bottom"><span>2</span></div>
+        <div id="peekNext2" class="stack-peek far-bottom"><span>3</span></div>'''
+right_new = '''        <div id="peekNext1" class="stack-peek"><span>2</span></div>
+        <div id="peekNext2" class="stack-peek"><span>3</span></div>
+        <div id="peekNext3" class="stack-peek"><span>4</span></div>'''
+if right_old not in text:
+    raise SystemExit("right peek HTML block not found")
+text = text.replace(right_old, right_new, 1)
+
+dom_old = '''    const backNumber = document.querySelector("#backNumber");
+    const peekPrev2 = document.querySelector("#peekPrev2");
+    const peekPrev1 = document.querySelector("#peekPrev1");
+    const peekNext1 = document.querySelector("#peekNext1");
+    const peekNext2 = document.querySelector("#peekNext2");'''
+dom_new = '''    const backNumber = document.querySelector("#backNumber");
+    const peekPrev3 = document.querySelector("#peekPrev3");
+    const peekPrev2 = document.querySelector("#peekPrev2");
+    const peekPrev1 = document.querySelector("#peekPrev1");
+    const peekNext1 = document.querySelector("#peekNext1");
+    const peekNext2 = document.querySelector("#peekNext2");
+    const peekNext3 = document.querySelector("#peekNext3");'''
+if dom_old not in text:
+    raise SystemExit("peek DOM block not found")
+text = text.replace(dom_old, dom_new, 1)
+
+state_old = '''    // 每次切換卡片都會重新蓋回卡背
+    let isAnimating = false;'''
+state_new = '''    // 中央卡切換時仍會重新蓋回卡背；旁邊則記得曾經翻開過的卡。
+    let isAnimating = false;
+    const revealedCards = new Set();'''
+if state_old not in text:
+    raise SystemExit("game state block not found")
+text = text.replace(state_old, state_new, 1)
+
+peek_pattern = r'    function setPeek\(element, index\) \{.*?\n    function flipCard\(\) \{'
+peek_new = '''    function setPeek(element, index) {
+      if (!element) return;
+
+      const valid = index >= 0 && index < cards.length;
+      element.classList.toggle("is-hidden", !valid);
+
+      if (!valid) {
+        element.classList.remove("is-revealed", "sr");
+        return;
+      }
+
+      const data = cards[index];
+      const revealed = revealedCards.has(index);
+
+      element.classList.toggle("is-revealed", revealed);
+      element.classList.toggle("sr", data.rarity === "SR");
+      element.innerHTML = revealed
+        ? `<img src="${data.image}" alt="" />`
+        : `<span>${index + 1}</span>`;
+    }
+
+    function updateDeckPeeks() {
+      setPeek(peekPrev3, currentIndex - 3);
+      setPeek(peekPrev2, currentIndex - 2);
+      setPeek(peekPrev1, currentIndex - 1);
+      setPeek(peekNext1, currentIndex + 1);
+      setPeek(peekNext2, currentIndex + 2);
+      setPeek(peekNext3, currentIndex + 3);
+    }
+
+    function flipCard() {'''
+text, n = re.subn(peek_pattern, peek_new, text, count=1, flags=re.S)
+if n != 1:
+    raise SystemExit("peek JS block not found")
+
+flip_old = '''      card.classList.add("flipped");
+      gestureStatus.textContent = "↑ 翻牌";'''
+flip_new = '''      card.classList.add("flipped");
+      revealedCards.add(currentIndex);
+      updateDeckPeeks();
+      gestureStatus.textContent = "↑ 翻牌";'''
+if flip_old not in text:
+    raise SystemExit("flipCard body not found")
+text = text.replace(flip_old, flip_new, 1)
+
+nav_pattern = r'    function nextCard\(\) \{.*?\n    function previousCard\(\) \{.*?\n    \}\n\n    // ==========================================\n    // 4\. MediaPipe'
+nav_new = '''    function finishCarouselMove(delta) {
+      setTimeout(() => {
+        currentIndex += delta;
+        deckShell.classList.add("snap-reset");
+        updateCard();
+        deckShell.classList.remove("carousel-next", "carousel-prev");
+        void deckShell.offsetWidth;
+
+        requestAnimationFrame(() => {
+          deckShell.classList.remove("snap-reset");
+          isAnimating = false;
+        });
+      }, 380);
+    }
+
+    function nextCard() {
+      if (isAnimating) return;
+
+      if (currentIndex >= cards.length - 1) {
+        gestureStatus.textContent = "已經是最後一張";
+        return;
+      }
+
+      isAnimating = true;
+      gestureStatus.textContent = "← 下一張";
+      deckShell.classList.add("carousel-next");
+      finishCarouselMove(1);
+    }
+
+    function previousCard() {
+      if (isAnimating) return;
+
+      if (currentIndex <= 0) {
+        gestureStatus.textContent = "已經是第一張";
+        return;
+      }
+
+      isAnimating = true;
+      gestureStatus.textContent = "→ 上一張";
+      deckShell.classList.add("carousel-prev");
+      finishCarouselMove(-1);
+    }
+
+    // ==========================================
+    // 4. MediaPipe'''
+text, n = re.subn(nav_pattern, nav_new, text, count=1, flags=re.S)
+if n != 1:
+    raise SystemExit("navigation JS block not found")
+
+p.write_text(text, encoding="utf-8")
+print("carousel patch complete")
