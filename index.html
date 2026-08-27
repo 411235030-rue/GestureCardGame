@@ -364,41 +364,95 @@
 
     .deck-shell {
       position: relative;
-      width: min(78vw, 360px);
+      width: min(96vw, 1000px);
       height: min(67vh, 560px);
       transform: translateY(-24px);
       display: grid;
       place-items: center;
+      perspective: 1500px;
+      --rail-shift: 0px;
+      --slide-distance: min(22.4vw, 196px);
+      --center-scale: 1;
     }
 
     .stack-peek {
       position: absolute;
+      top: 50%;
       left: 50%;
-      width: 78%;
+      width: min(28vw, 245px);
       aspect-ratio: 2.5 / 3.5;
       border-radius: 22px;
       border: 5px solid rgba(255,255,255,.9);
       background:
         radial-gradient(circle at 28% 20%, rgba(255,255,255,.22), transparent 26%),
         linear-gradient(155deg, #a390a0, #d2a6a5 60%, #edc5bd);
-      box-shadow: 0 16px 40px rgba(84,61,72,.10);
+      box-shadow: 0 18px 42px rgba(84,61,72,.12);
       color: rgba(255,255,255,.94);
       display: grid;
       place-items: center;
-      transition: opacity .25s ease, transform .42s cubic-bezier(.2,.8,.2,1);
+      overflow: hidden;
       pointer-events: none;
+      transform:
+        translate(calc(var(--x) + var(--rail-shift)), -50%)
+        scale(var(--scale))
+        rotateY(var(--ry));
+      transform-origin: center;
+      transition:
+        transform .38s cubic-bezier(.2,.8,.2,1),
+        opacity .32s ease,
+        filter .32s ease,
+        box-shadow .32s ease;
+      opacity: var(--opacity);
+      filter: saturate(.82) brightness(.97);
     }
 
     .stack-peek span {
-      font: 500 34px/1 Georgia, serif;
-      opacity: .72;
+      font: 500 38px/1 Georgia, serif;
+      opacity: .78;
     }
 
-    .stack-peek.far-top { top: 3%; transform: translateX(-50%) scale(.72); z-index: 1; opacity: .36; }
-    .stack-peek.near-top { top: 9%; transform: translateX(-50%) scale(.84); z-index: 2; opacity: .62; }
-    .stack-peek.near-bottom { bottom: 9%; transform: translateX(-50%) scale(.84); z-index: 2; opacity: .62; }
-    .stack-peek.far-bottom { bottom: 3%; transform: translateX(-50%) scale(.72); z-index: 1; opacity: .36; }
-    .stack-peek.is-hidden { opacity: 0 !important; }
+    .stack-peek img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #eee5e2;
+    }
+
+    .stack-peek.is-revealed {
+      background: #eee5e2;
+    }
+
+    .stack-peek.sr {
+      border-color: #e5bd4f;
+      box-shadow:
+        0 0 0 1px rgba(255,239,176,.62),
+        0 0 18px rgba(238,194,73,.34),
+        0 18px 42px rgba(84,61,72,.12);
+      animation: srSideGlow 1.65s ease-in-out infinite;
+    }
+
+    @keyframes srSideGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 1px rgba(255,239,176,.5), 0 0 9px rgba(238,194,73,.25), 0 18px 42px rgba(84,61,72,.12);
+      }
+      50% {
+        box-shadow: 0 0 0 1px rgba(255,248,211,.88), 0 0 26px rgba(255,218,101,.58), 0 18px 42px rgba(84,61,72,.12);
+      }
+    }
+
+    #peekPrev3,
+    #peekNext3 { display: none; }
+
+    #peekPrev2 { --x: -195%; --scale: .68; --ry: 30deg; --opacity: .42; z-index: 1; }
+    #peekPrev1 { --x: -130%; --scale: .84; --ry: 20deg; --opacity: .76; z-index: 3; }
+    #peekNext1 { --x: 30%; --scale: .84; --ry: -20deg; --opacity: .76; z-index: 3; }
+    #peekNext2 { --x: 95%; --scale: .68; --ry: -30deg; --opacity: .42; z-index: 1; }
+
+    .stack-peek.is-hidden {
+      opacity: 0 !important;
+      pointer-events: none;
+    }
 
     .card-stage {
       width: min(72vw, 310px);
@@ -406,6 +460,40 @@
       perspective: 1200px;
       position: relative;
       z-index: 6;
+      transform: translateX(var(--rail-shift)) scale(var(--center-scale));
+      transition:
+        transform .38s cubic-bezier(.2,.8,.2,1),
+        opacity .3s ease;
+      opacity: 1;
+    }
+
+    .deck-shell.carousel-next {
+      --rail-shift: calc(var(--slide-distance) * -1);
+      --center-scale: .82;
+    }
+
+    .deck-shell.carousel-prev {
+      --rail-shift: var(--slide-distance);
+      --center-scale: .82;
+    }
+
+    .deck-shell.carousel-next .card-stage,
+    .deck-shell.carousel-prev .card-stage {
+      opacity: .42;
+    }
+
+    .deck-shell.carousel-next #peekNext1,
+    .deck-shell.carousel-prev #peekPrev1 {
+      --scale: 1.04;
+      --ry: 0deg;
+      --opacity: 1;
+      z-index: 8;
+      filter: saturate(1) brightness(1);
+    }
+
+    .deck-shell.snap-reset .stack-peek,
+    .deck-shell.snap-reset .card-stage {
+      transition: none !important;
     }
 
     .card {
@@ -638,9 +726,22 @@
         touch-action: none;
         user-select: none;
         -webkit-user-select: none;
+        --slide-distance: min(44vw, 170px);
       }
       .card-stage { width: min(74vw, 285px); }
-      .stack-peek { border-width: 4px; border-radius: 18px; }
+      .stack-peek {
+        width: min(44vw, 170px);
+        border-width: 4px;
+        border-radius: 18px;
+      }
+      #peekPrev3,
+      #peekNext3 { display: grid; }
+      #peekPrev3 { --x: -285%; --scale: .44; --ry: 38deg; --opacity: .24; z-index: 0; }
+      #peekPrev2 { --x: -220%; --scale: .56; --ry: 32deg; --opacity: .38; z-index: 1; }
+      #peekPrev1 { --x: -150%; --scale: .74; --ry: 22deg; --opacity: .70; z-index: 3; }
+      #peekNext1 { --x: 50%; --scale: .74; --ry: -22deg; --opacity: .70; z-index: 3; }
+      #peekNext2 { --x: 120%; --scale: .56; --ry: -32deg; --opacity: .38; z-index: 1; }
+      #peekNext3 { --x: 185%; --scale: .44; --ry: -38deg; --opacity: .24; z-index: 0; }
       .card, .card-face { border-radius: 20px; }
       .card-face { border-width: 5px; }
       .controls { bottom: 14px; width: calc(100vw - 24px); }
@@ -702,8 +803,9 @@
 
     <main class="game-main">
       <div class="deck-shell">
-        <div id="peekPrev2" class="stack-peek far-top"><span>1</span></div>
-        <div id="peekPrev1" class="stack-peek near-top"><span>1</span></div>
+        <div id="peekPrev3" class="stack-peek"><span>1</span></div>
+        <div id="peekPrev2" class="stack-peek"><span>1</span></div>
+        <div id="peekPrev1" class="stack-peek"><span>1</span></div>
 
         <div class="card-stage">
           <div id="card" class="card">
@@ -720,8 +822,9 @@
           </div>
         </div>
 
-        <div id="peekNext1" class="stack-peek near-bottom"><span>2</span></div>
-        <div id="peekNext2" class="stack-peek far-bottom"><span>3</span></div>
+        <div id="peekNext1" class="stack-peek"><span>2</span></div>
+        <div id="peekNext2" class="stack-peek"><span>3</span></div>
+        <div id="peekNext3" class="stack-peek"><span>4</span></div>
       </div>
     </main>
 
@@ -774,10 +877,12 @@ Result: 等待開始</div>
     const cardFront = document.querySelector("#cardFront");
     const cardImage = document.querySelector("#cardImage");
     const backNumber = document.querySelector("#backNumber");
+    const peekPrev3 = document.querySelector("#peekPrev3");
     const peekPrev2 = document.querySelector("#peekPrev2");
     const peekPrev1 = document.querySelector("#peekPrev1");
     const peekNext1 = document.querySelector("#peekNext1");
     const peekNext2 = document.querySelector("#peekNext2");
+    const peekNext3 = document.querySelector("#peekNext3");
     const debugToggle = document.querySelector("#debugToggle");
 
     const cameraDot = document.querySelector("#cameraDot");
@@ -815,8 +920,9 @@ Result: 等待開始</div>
     // ==========================================
     let currentIndex = 0;
 
-    // 每次切換卡片都會重新蓋回卡背
+    // 中央卡切換時仍會重新蓋回卡背；旁邊則記得曾經翻開過的卡。
     let isAnimating = false;
+    const revealedCards = new Set();
 
     function updateCard() {
       const data = cards[currentIndex];
@@ -841,18 +947,32 @@ Result: 等待開始</div>
 
     function setPeek(element, index) {
       if (!element) return;
+
       const valid = index >= 0 && index < cards.length;
       element.classList.toggle("is-hidden", !valid);
-      if (valid) {
-        element.querySelector("span").textContent = index + 1;
+
+      if (!valid) {
+        element.classList.remove("is-revealed", "sr");
+        return;
       }
+
+      const data = cards[index];
+      const revealed = revealedCards.has(index);
+
+      element.classList.toggle("is-revealed", revealed);
+      element.classList.toggle("sr", data.rarity === "SR");
+      element.innerHTML = revealed
+        ? `<img src="${data.image}" alt="" />`
+        : `<span>${index + 1}</span>`;
     }
 
     function updateDeckPeeks() {
+      setPeek(peekPrev3, currentIndex - 3);
       setPeek(peekPrev2, currentIndex - 2);
       setPeek(peekPrev1, currentIndex - 1);
       setPeek(peekNext1, currentIndex + 1);
       setPeek(peekNext2, currentIndex + 2);
+      setPeek(peekNext3, currentIndex + 3);
     }
 
     function flipCard() {
@@ -860,13 +980,29 @@ Result: 等待開始</div>
       if (card.classList.contains("flipped")) return;
 
       card.classList.add("flipped");
+      revealedCards.add(currentIndex);
+      updateDeckPeeks();
       gestureStatus.textContent = "↑ 翻牌";
+    }
+
+    function finishCarouselMove(delta) {
+      setTimeout(() => {
+        currentIndex += delta;
+        deckShell.classList.add("snap-reset");
+        updateCard();
+        deckShell.classList.remove("carousel-next", "carousel-prev");
+        void deckShell.offsetWidth;
+
+        requestAnimationFrame(() => {
+          deckShell.classList.remove("snap-reset");
+          isAnimating = false;
+        });
+      }, 380);
     }
 
     function nextCard() {
       if (isAnimating) return;
 
-      // 已經最後一張就不再往後
       if (currentIndex >= cards.length - 1) {
         gestureStatus.textContent = "已經是最後一張";
         return;
@@ -874,19 +1010,13 @@ Result: 等待開始</div>
 
       isAnimating = true;
       gestureStatus.textContent = "← 下一張";
-      card.classList.add("fly-left");
-
-      setTimeout(() => {
-        currentIndex++;
-        updateCard();
-        isAnimating = false;
-      }, 360);
+      deckShell.classList.add("carousel-next");
+      finishCarouselMove(1);
     }
 
     function previousCard() {
       if (isAnimating) return;
 
-      // 已經第一張就不再往前
       if (currentIndex <= 0) {
         gestureStatus.textContent = "已經是第一張";
         return;
@@ -894,13 +1024,8 @@ Result: 等待開始</div>
 
       isAnimating = true;
       gestureStatus.textContent = "→ 上一張";
-      card.classList.add("fly-right");
-
-      setTimeout(() => {
-        currentIndex--;
-        updateCard();
-        isAnimating = false;
-      }, 360);
+      deckShell.classList.add("carousel-prev");
+      finishCarouselMove(-1);
     }
 
     // ==========================================
