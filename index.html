@@ -506,6 +506,10 @@
       border-radius: 24px;
     }
 
+    .card.instant-state {
+      transition: none !important;
+    }
+
     .card-face {
       position: absolute;
       inset: 0;
@@ -920,16 +924,17 @@ Result: 等待開始</div>
     // ==========================================
     let currentIndex = 0;
 
-    // 中央卡切換時仍會重新蓋回卡背；旁邊則記得曾經翻開過的卡。
+    // 本輪翻過的卡會維持揭露；重新整理頁面後 Set 會自然重置。
     let isAnimating = false;
     const revealedCards = new Set();
 
     function updateCard() {
       const data = cards[currentIndex];
+      const revealed = revealedCards.has(currentIndex);
 
-      // 一定要先清掉上一張的 flipped 狀態，再更換圖片。
-      // 否則圖片已快取時，下一張正面會在回到卡背前閃一下。
-      card.className = "card";
+      // 先瞬間回到卡背，再換圖片，避免未翻過的新卡閃出正面。
+      // 若這張卡本輪已翻過，再於同一幀直接套回 flipped，不播放重複翻牌動畫。
+      card.className = "card instant-state";
       if (data.rarity === "SR") {
         card.classList.add("sr");
       }
@@ -941,7 +946,17 @@ Result: 等待開始</div>
         `CARD ${String(currentIndex + 1).padStart(2, "0")}`;
 
       cardFront.className = "card-face card-front";
+      if (revealed) {
+        card.classList.add("flipped");
+      }
+
       updateDeckPeeks();
+
+      // 強制套用這次的無動畫狀態，下一幀恢復正常翻牌動畫。
+      void card.offsetWidth;
+      requestAnimationFrame(() => {
+        card.classList.remove("instant-state");
+      });
     }
 
     function setPeek(element, index) {
