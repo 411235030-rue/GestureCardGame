@@ -1,0 +1,43 @@
+name: Fix continuous scroll status
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-continuous-status.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keep gesture off status visible
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          old = '''      gestureToggle.classList.add("off");
+      gestureStatus.textContent = "手勢辨識已關閉";
+
+      stopAutoScroll();
+      gestureArmed = false;'''
+          new = '''      gestureToggle.classList.add("off");
+
+      stopAutoScroll();
+      gestureArmed = false;
+      gestureStatus.textContent = "手勢辨識已關閉";'''
+          if old not in text:
+              raise SystemExit('gesture off status block not found')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Keep gesture off status visible"
+          git push
