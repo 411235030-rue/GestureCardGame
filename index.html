@@ -325,6 +325,36 @@
       box-shadow: 0 0 0 5px rgba(87,201,139,.12);
     }
 
+    .gesture-toggle {
+      margin-left: 3px;
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,.72);
+      color: #82777c;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .18s ease, color .18s ease, transform .18s ease;
+    }
+
+    .gesture-toggle:hover {
+      background: #fff;
+      color: #554c51;
+      transform: translateY(-1px);
+    }
+
+    .gesture-toggle.off {
+      background: rgba(221,176,170,.18);
+      color: #9d7774;
+    }
+
+    .gesture-toggle:disabled {
+      opacity: .55;
+      cursor: wait;
+      transform: none;
+    }
+
     .game-main {
       width: 100%;
       display: grid;
@@ -664,11 +694,10 @@
       </div>
     </header>
 
-    <div class="topbar">
+    <div id="cameraStatusBar" class="topbar">
       <span id="cameraDot"></span>
       <span id="cameraText">準備鏡頭中</span>
-      <span>·</span>
-      <span id="cardCounter">1 / 20</span>
+      <button id="gestureToggle" class="gesture-toggle" type="button">關閉</button>
     </div>
 
     <main class="game-main">
@@ -745,7 +774,6 @@ Result: 等待開始</div>
     const cardFront = document.querySelector("#cardFront");
     const cardImage = document.querySelector("#cardImage");
     const backNumber = document.querySelector("#backNumber");
-    const cardCounter = document.querySelector("#cardCounter");
     const peekPrev2 = document.querySelector("#peekPrev2");
     const peekPrev1 = document.querySelector("#peekPrev1");
     const peekNext1 = document.querySelector("#peekNext1");
@@ -754,6 +782,8 @@ Result: 等待開始</div>
 
     const cameraDot = document.querySelector("#cameraDot");
     const cameraText = document.querySelector("#cameraText");
+    const cameraStatusBar = document.querySelector("#cameraStatusBar");
+    const gestureToggle = document.querySelector("#gestureToggle");
     const gestureStatus = document.querySelector("#gestureStatus");
     const errorBox = document.querySelector("#errorBox");
     const debugPanel = document.querySelector("#debugPanel");
@@ -770,6 +800,7 @@ Result: 等待開始</div>
 
     if (isTouchMode) {
       document.body.classList.add("touch-mode");
+      cameraStatusBar.style.display = "none";
       startBtn.textContent = "開始抽卡";
       welcomeLead.textContent = "左右滑動切換卡片，點一下或往上滑即可翻開你的收藏照片。";
       welcomeGestures.innerHTML = `
@@ -791,8 +822,6 @@ Result: 等待開始</div>
       const data = cards[currentIndex];
 
       backNumber.textContent = currentIndex + 1;
-      cardCounter.textContent =
-        `${currentIndex + 1} / ${cards.length}`;
 
       cardImage.src = data.image;
       cardImage.alt =
@@ -963,6 +992,56 @@ Result: 等待開始</div>
 
       cameraDot.classList.add("on");
       cameraText.textContent = "手勢辨識中";
+    }
+
+    function stopGestureRecognition() {
+      detectionStarted = false;
+
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+        cameraStream = null;
+      }
+
+      webcam.srcObject = null;
+      cameraDot.classList.remove("on");
+      cameraText.textContent = "手勢辨識已關閉";
+      gestureToggle.textContent = "開啟";
+      gestureToggle.classList.add("off");
+      gestureStatus.textContent = "手勢辨識已關閉";
+
+      gestureArmed = false;
+      gestureStart = null;
+      lastPosition = null;
+      startPoseSince = 0;
+      startPoseConfirmed = false;
+      startPosePoint = null;
+      activeHandLabel = null;
+    }
+
+    async function startGestureRecognition() {
+      gestureToggle.disabled = true;
+      gestureToggle.textContent = "啟動中";
+
+      try {
+        if (!handLandmarker) {
+          await createHandLandmarker();
+        }
+
+        await startCamera();
+        detectionStarted = true;
+        gestureToggle.textContent = "關閉";
+        gestureToggle.classList.remove("off");
+        gestureStatus.textContent = "請先握拳啟動操作模式";
+        requestAnimationFrame(detectLoop);
+      } catch (error) {
+        console.error(error);
+        cameraDot.classList.remove("on");
+        cameraText.textContent = "辨識啟動失敗";
+        gestureToggle.textContent = "重試";
+        gestureToggle.classList.add("off");
+      } finally {
+        gestureToggle.disabled = false;
+      }
     }
 
     // 取手掌中心，會比只追某一根手指穩
@@ -1351,6 +1430,14 @@ Result: 等待開始</div>
     }
 
     startBtn.addEventListener("click", startGame);
+
+    gestureToggle.addEventListener("click", async () => {
+      if (detectionStarted) {
+        stopGestureRecognition();
+      } else {
+        await startGestureRecognition();
+      }
+    });
 
     debugToggle.addEventListener("click", () => {
       const isOpen = debugPanel.classList.toggle("open");
