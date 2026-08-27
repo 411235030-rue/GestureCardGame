@@ -398,7 +398,7 @@
         rotateY(var(--ry));
       transform-origin: center;
       transition:
-        transform .38s cubic-bezier(.2,.8,.2,1),
+        transform .03s linear,
         opacity .32s ease,
         filter .32s ease,
         box-shadow .32s ease;
@@ -462,7 +462,7 @@
       z-index: 6;
       transform: translateX(var(--rail-shift)) scale(var(--center-scale));
       transition:
-        transform .38s cubic-bezier(.2,.8,.2,1),
+        transform .03s linear,
         opacity .3s ease;
       opacity: 1;
     }
@@ -931,8 +931,8 @@ Result: 等待開始</div>
     // 桌機手勢巡卡：左右滑一次後持續移動，握拳才停止。
     let autoScrollDirection = null; // "next" | "previous" | null
     let autoScrollTimer = null;
-    const AUTO_SCROLL_INTERVAL_MS = 600;
-    const CAROUSEL_ANIMATION_MS = 380;
+    const AUTO_SCROLL_INTERVAL_MS = 30;
+    const CAROUSEL_ANIMATION_MS = 30;
     const AUTO_SCROLL_GAP_MS = Math.max(0, AUTO_SCROLL_INTERVAL_MS - CAROUSEL_ANIMATION_MS);
 
     function updateCard() {
