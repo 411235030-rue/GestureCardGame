@@ -1,0 +1,24 @@
+name: Enable mobile gesture support
+
+on:
+  push:
+    paths:
+      - '.github/workflows/enable-mobile-gestures.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable gestures on phones and tablets
+        run: python .github/scripts/enable_mobile_gestures.py
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Enable hand gestures on mobile and tablet"
+          git push
